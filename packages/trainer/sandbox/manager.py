@@ -47,6 +47,10 @@ class SandboxManager:
         return self._backend.exec(container_name(student_id), ["bash", "-lc", cmd], user="student",
                                   timeout_s=timeout_s)
 
+    def read_file(self, student_id: str, path: str) -> ExecResult:
+        """Файл песочницы от root (история обеих оболочек); песочницу не поднимает — нет её, нет и файла."""
+        return self._backend.exec(container_name(student_id), ["cat", path], user="root", timeout_s=5)
+
     def tty(self, student_id: str) -> TtySession:
         self.ensure_for(student_id)
         return self._backend.attach_tty(container_name(student_id), "lobby")
