@@ -1,0 +1,8 @@
+# Терминал тренажёра. Подключись к своему серверу: ssh student@lab
+. /etc/profile.d/trainer-history.sh
+PS1='\[\e[33m\]lobby\[\e[0m\]:~$ '
+echo
+echo "  Привет! Это вход в учебный центр."
+echo "  Подключись к своему серверу командой:  ssh student@lab"
+echo "  Пароль выдаст преподаватель."
+echo
