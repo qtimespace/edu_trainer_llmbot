@@ -42,6 +42,15 @@ def test_post_without_csrf_403(client):
     assert c.post("/auth/logout").status_code == 403
 
 
+def test_change_password_is_throttled(client):
+    c, accounts = client
+    accounts.create_account("ivan", PASS, role="student")
+    login(c, "ivan")
+    for _ in range(10):
+        assert c.post("/auth/password", json={"old": "wrong password!", "new": "brand new password"}).status_code == 403
+    assert c.post("/auth/password", json={"old": PASS, "new": "brand new password"}).status_code == 429
+
+
 def test_teacher_dep_rejects_student(client):
     _, accounts = client
     accounts.create_account("ivan", PASS, role="student")

@@ -69,10 +69,14 @@ class PasswordBody(BaseModel):
 
 
 @router.post("/password", status_code=204)
-def change_password(body: PasswordBody, who=Depends(account_dep), engine: Engine = Depends(engine_dep)) -> None:
+def change_password(body: PasswordBody, request: Request, who=Depends(account_dep),
+                    engine: Engine = Depends(engine_dep)) -> None:
     account, session = who
-    accounts = AccountStore(engine)
+    accounts, throttle, ip = AccountStore(engine), Throttle(engine), client_ip(request)
+    if throttle.blocked(account.login, ip):
+        raise HTTPException(status_code=429, detail="слишком много попыток — повторите позже")
     if accounts.check_password(account.login, body.old) is None:
+        throttle.fail(account.login, ip)
         raise HTTPException(status_code=403, detail="текущий пароль неверен")
     issues = problems(body.new, account.login)
     if issues:
