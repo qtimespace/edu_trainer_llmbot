@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from apps.api import auth_local, group
+from apps.api import auth_local, group, presence
 from trainer.accounts.seed import seed_teacher
 from trainer.accounts.store import AccountStore
 from trainer.db import get_engine
@@ -27,6 +27,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title="Тренажёр юного разработчика", lifespan=lifespan)
 app.include_router(auth_local.router)
 app.include_router(group.router)
+app.include_router(presence.router)
 
 
 @app.get("/health")
