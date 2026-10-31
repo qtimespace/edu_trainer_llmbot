@@ -4,6 +4,7 @@
 Кадры: клиент → бинарные = ввод, текст {"type":"resize","cols","rows"}; сервер → бинарные = вывод.
 """
 import asyncio
+import concurrent.futures
 import json
 import logging
 import threading
@@ -59,14 +60,21 @@ async def terminal(ws: WebSocket) -> None:
     queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=QUEUE_CHUNKS)
     stop = threading.Event()
 
-    def put(item: bytes | None, timeout: float | None = None) -> None:
-        coro = queue.put(item)
-        try:
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-        except RuntimeError:  # цикл событий уже остановлен
-            coro.close()
-            raise
-        future.result(timeout=timeout)
+    def put(item: bytes | None) -> bool:
+        """В очередь; ждём места порциями по 0.2 с, пока сессия жива. False — сессия закрыта."""
+        while not stop.is_set():
+            coro = queue.put(item)
+            try:
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+            except RuntimeError:  # цикл событий уже остановлен
+                coro.close()
+                return False
+            try:
+                future.result(timeout=0.2)
+                return True
+            except concurrent.futures.TimeoutError:
+                future.cancel()
+        return False
 
     def pump() -> None:  # вывод оболочки → очередь; полная очередь притормаживает чтение (backpressure)
         try:
@@ -74,9 +82,9 @@ async def terminal(ws: WebSocket) -> None:
                 data = tty.read(0.1)
                 if data is None:
                     break
-                if data:
-                    put(data)
-            put(None, timeout=1)
+                if data and not put(data):
+                    return
+            put(None)
         except Exception:  # noqa: BLE001 — соединение закрыто, цикл событий остановлен
             pass
 
