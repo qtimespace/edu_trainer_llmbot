@@ -6,9 +6,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
 from apps.api.auth import teacher_dep
-from apps.api.deps import engine_dep
+from apps.api.deps import engine_dep, providers_dep, runner_dep, settings_dep
 from trainer.curriculum.lessons import LessonStore
+from trainer.curriculum.methodist import prepare_lesson
 from trainer.curriculum.tasks import Check, TaskStore
+from trainer.settings import Settings
+from trainer.tutor.jobs import LlmDeps
 
 router = APIRouter(dependencies=[Depends(teacher_dep)])
 
@@ -104,3 +107,18 @@ def approve_task(task_id: str, engine: Engine = Depends(engine_dep)) -> dict:
 def delete_task(task_id: str, engine: Engine = Depends(engine_dep)) -> None:
     if not TaskStore(engine).delete(task_id):
         raise HTTPException(status_code=404, detail="задание не найдено")
+
+
+class PrepareBody(BaseModel):
+    student_id: str | None = None
+
+
+@router.post("/lessons/{lesson_id}/prepare", status_code=202)
+def prepare(lesson_id: str, body: PrepareBody, engine: Engine = Depends(engine_dep),
+            settings: Settings = Depends(settings_dep), providers=Depends(providers_dep),
+            run=Depends(runner_dep)) -> dict:
+    _lesson_or_404(engine, lesson_id)
+    if not LessonStore(engine).try_start_prep(lesson_id):
+        raise HTTPException(status_code=409, detail="задания по уроку уже готовятся")
+    run(prepare_lesson, LlmDeps(engine, settings, providers), lesson_id, body.student_id)
+    return {"status": "running"}

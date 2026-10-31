@@ -10,6 +10,7 @@ from trainer.agents.seed import seed_agents
 from trainer.agents.store import AgentStore
 from trainer.db import get_engine
 from trainer.settings import get_settings
+from trainer.tutor.jobs import recover_after_restart
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +23,7 @@ async def lifespan(_app: FastAPI):
         log.info("преподаватель из env: %s",
                  seed_teacher(AccountStore(engine), settings.teacher_login, settings.teacher_password))
         log.info("агенты по умолчанию: %s", seed_agents(AgentStore(engine)))
+        recover_after_restart(engine)
     except Exception:  # API должен подняться и без БД — ошибка видна в логе и в ответах
         log.exception("начальная загрузка не выполнена")
     yield
