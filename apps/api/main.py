@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from apps.api import agents, auth_local, group, lessons, llm_settings, presence, sandbox, tasks
+from apps.api import agents, auth_local, group, lessons, llm_settings, presence, sandbox, tasks, terminal
 from trainer.accounts.seed import seed_teacher
 from trainer.accounts.store import AccountStore
 from trainer.agents.seed import seed_agents
@@ -38,6 +38,7 @@ app.include_router(agents.router)
 app.include_router(lessons.router)
 app.include_router(tasks.router)
 app.include_router(sandbox.router)
+app.include_router(terminal.router)
 
 
 @app.get("/health")
