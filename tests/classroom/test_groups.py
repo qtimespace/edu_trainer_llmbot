@@ -49,6 +49,16 @@ def test_resize_below_occupied_409(teacher, api):
     assert GroupStore(api).current().size == 3
 
 
+def test_password_reset_closes_student_sessions(teacher, api):
+    teacher.post("/group", json={"name": "g", "size": 2})
+    sid = teacher.post("/group/students", json={"login": "kid1", "name": "x"}).json()["student"]["account_id"]
+    AccountStore(api).set_password(sid, PASS)
+    kid = TestClient(app)
+    login(kid, "kid1")
+    assert teacher.post(f"/group/students/{sid}/password").status_code == 200
+    assert kid.get("/auth/me").status_code == 401
+
+
 def test_student_cannot_call_group_api_403(teacher, api):
     teacher.post("/group", json={"name": "g", "size": 2})
     teacher.post("/group/students", json={"login": "kid1", "name": "x"})

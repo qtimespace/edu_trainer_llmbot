@@ -7,6 +7,7 @@ from sqlalchemy import Engine
 
 from apps.api.auth import teacher_dep
 from apps.api.deps import engine_dep
+from trainer.accounts.sessions import SessionStore
 from trainer.accounts.store import AccountStore, LoginTaken
 from trainer.classroom.groups import MAX_SIZE, MIN_SIZE, GroupFull, GroupStore, SeatsTaken, login_password
 
@@ -100,4 +101,5 @@ def reset_password(account_id: str, engine: Engine = Depends(engine_dep)) -> dic
     _student_or_404(GroupStore(engine), account_id)
     password = login_password()
     AccountStore(engine).set_password(account_id, password)
+    SessionStore(engine).close_all(account_id)  # старый пароль мог утечь — выходим со всех устройств
     return {"password": password}
