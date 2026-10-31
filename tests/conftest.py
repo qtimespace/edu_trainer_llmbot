@@ -43,3 +43,18 @@ def engine(database_url):
     with eng.begin() as conn:
         conn.execute(text("TRUNCATE " + ", ".join(TABLES) + " CASCADE"))
     eng.dispose()
+
+
+@pytest.fixture
+def api(engine, database_url):
+    """Приложение API на тестовой БД: подменяются настройки и движок; возвращает движок."""
+    from apps.api.deps import engine_dep, settings_dep
+    from apps.api.main import app
+    from trainer.settings import Settings
+
+    settings = Settings(_env_file=None, database_url=database_url, session_cookie_secure=False,
+                        secrets_keys=os.environ["TRAINER_SECRETS_KEYS"], sandbox_backend="fake")
+    app.dependency_overrides[settings_dep] = lambda: settings
+    app.dependency_overrides[engine_dep] = lambda: engine
+    yield engine
+    app.dependency_overrides.clear()
