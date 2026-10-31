@@ -38,7 +38,7 @@ packages = ["packages/trainer", "apps"]
 testpaths = ["tests"]
 pythonpath = ["packages", "."]
 addopts = "--import-mode=importlib -m 'not docker'"
-markers = ["docker: требует настоящий Docker (запуск на VPS: pytest -m docker)"]
+markers = ["db: требует PostgreSQL (pgserver)", "docker: требует настоящий Docker (запуск на VPS: pytest -m docker)"]
 
 [tool.ruff]
 line-length = 110

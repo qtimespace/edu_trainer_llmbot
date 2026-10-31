@@ -1,0 +1,15 @@
+policy:
+  name: methodist-v1
+  version: 1
+  execution: fallback
+  constraints:
+    max_cost_usd: 0.30
+    max_input_tokens: 32000
+    max_output_tokens: 8000
+    max_attempts: 3
+  preferred: [reasoning]
+  fallback:
+    "on": [timeout, provider_error, rate_limit, quota_exceeded, output_truncated]
+    strategy: [next_model, cheaper_model]
+  quality:
+    min_confidence: 0.5
