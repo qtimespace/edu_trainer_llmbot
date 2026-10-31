@@ -6,6 +6,10 @@ from trainer.classroom.groups import GroupStore
 from .backend import ExecResult, SandboxBackend, Status, TtySession
 
 
+CLEAN_ENV = ["env", "-i", "HOME=/home/student", "USER=student", "LANG=C.UTF-8",
+             "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
+
+
 def container_name(student_id: str) -> str:
     return f"trainer-sbx-{student_id.replace('-', '')[:12]}"
 
@@ -44,12 +48,13 @@ class SandboxManager:
 
     def exec_as_student(self, student_id: str, cmd: str, timeout_s: int = 10) -> ExecResult:
         self.ensure_for(student_id)
-        return self._backend.exec(container_name(student_id), ["bash", "-lc", cmd], user="student",
-                                  timeout_s=timeout_s)
+        # чистое окружение и без ~/.bashrc/.profile: ученик не подменит test/grep алиасом и не «пройдёт» проверку
+        return self._backend.exec(container_name(student_id), CLEAN_ENV + ["bash", "--noprofile", "--norc", "-c", cmd],
+                                  user="student", timeout_s=timeout_s)
 
     def read_file(self, student_id: str, path: str) -> ExecResult:
         """Файл песочницы от root (история обеих оболочек); песочницу не поднимает — нет её, нет и файла."""
-        return self._backend.exec(container_name(student_id), ["cat", path], user="root", timeout_s=5)
+        return self._backend.exec(container_name(student_id), ["tail", "-c", "65536", path], user="root", timeout_s=5)
 
     def tty(self, student_id: str) -> TtySession:
         self.ensure_for(student_id)

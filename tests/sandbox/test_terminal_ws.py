@@ -51,6 +51,24 @@ def test_resize_forwarded(world):
     assert world.ttys[0].size == (120, 40)
 
 
+def test_bad_resize_is_ignored_and_clamped(world):
+    with _kid().websocket_connect("/ws/terminal", headers=ORIGIN) as ws:
+        ws.send_text(json.dumps({"type": "resize", "cols": "abc", "rows": None}))
+        ws.send_text(json.dumps({"type": "resize", "cols": 100000, "rows": -5}))
+        ws.send_bytes(b"x")
+        assert ws.receive_bytes() == b"x"  # соединение живо
+    assert world.ttys[0].size == (500, 1)
+
+
+def test_must_change_password_blocks_terminal(world, api):
+    kid = _kid()
+    account = AccountStore(api).by_login("kid1")
+    AccountStore(api).set_password(account.id, PASS, must_change=True)
+    with pytest.raises(WebSocketDisconnect) as e, kid.websocket_connect("/ws/terminal", headers=ORIGIN) as ws:
+        ws.receive_bytes()
+    assert e.value.code == 4403
+
+
 @pytest.mark.parametrize("who,headers", [("anon", ORIGIN), ("teacher", ORIGIN), ("kid", {"origin": "https://evil.example"}),
                                          ("kid", {})])
 def test_ws_rejects_foreign_or_anonymous(world, who, headers):

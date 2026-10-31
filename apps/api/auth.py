@@ -33,14 +33,21 @@ def account_dep(request: Request, engine: Engine = Depends(engine_dep)) -> tuple
     return account, session
 
 
+def role_problem(account: Account, role: str) -> str | None:
+    """Почему учётная запись не может работать в этой роли (общая проверка для HTTP и WebSocket)."""
+    if account.must_change_password:
+        return "смените пароль"
+    if account.role != role:
+        return "недостаточно прав"
+    return None
+
+
 def _role(role: str):
     def dep(who: tuple[Account, Session] = Depends(account_dep)) -> Account:
-        account = who[0]
-        if account.must_change_password:
-            raise HTTPException(status_code=403, detail="смените пароль")
-        if account.role != role:
-            raise HTTPException(status_code=403, detail="недостаточно прав")
-        return account
+        problem = role_problem(who[0], role)
+        if problem:
+            raise HTTPException(status_code=403, detail=problem)
+        return who[0]
     return dep
 
 

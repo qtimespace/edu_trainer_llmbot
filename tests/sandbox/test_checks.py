@@ -25,7 +25,10 @@ def test_pass_and_fail(kid):
                                                               Check(cmd="test -d ~/Temp", about="Temp")])
     assert [r.passed for r in results] == [True, False]
     assert len(results[0].output) <= 500 and results[1].about == "Temp"
-    assert fake.calls[0][1] == ["bash", "-lc", "test -f ~/a.txt"] and fake.calls[0][2] == "student"
+    name, cmd, user = fake.calls[0]
+    # проверка не читает настройки оболочки ученика (alias test=true не обманет) и идёт в чистом окружении
+    assert cmd[:2] == ["env", "-i"] and cmd[-4:] == ["--noprofile", "--norc", "-c", "test -f ~/a.txt"]
+    assert "HOME=/home/student" in cmd and user == "student"
 
 
 def test_check_timeout(kid):
@@ -50,6 +53,7 @@ def test_history_merges_lobby_and_student(kid):
              "/home/student/.bash_history": "#1700000100\nls\n#1700000200\nmkdir Temp\n"}
 
     def handler(name, cmd, user):
-        return ExecResult(0, files.get(cmd[-1], "")) if cmd[0] == "cat" else ExecResult(0, "")
+        assert cmd[:3] == ["tail", "-c", "65536"]  # огромную историю целиком не читаем
+        return ExecResult(0, files.get(cmd[-1], ""))
     lines = recent_history(SandboxManager(FakeBackend(handler), engine), sid, limit=3)
     assert lines == ["student$ ls", "student$ mkdir Temp", "lobby$ exit"]
