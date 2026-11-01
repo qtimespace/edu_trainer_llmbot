@@ -3,11 +3,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { menuFor } from "@/lib/nav";
+import { usePresence } from "@/lib/presence";
 import { useSession } from "@/lib/session";
 
 export function Shell({ children }: { children: ReactNode }) {
   const { me, role, logout } = useSession();
   const path = usePathname();
+  usePresence(role === "student"); // пока ученик здесь — в его комнате горит свет
   return (
     <div className="flex min-h-screen">
       <aside className="w-52 shrink-0 border-r border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
