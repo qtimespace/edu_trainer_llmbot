@@ -8,7 +8,7 @@ jobs:
   api:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: astral-sh/setup-uv@v6
       - run: uv python install 3.12
       - run: uv sync
@@ -20,11 +20,12 @@ jobs:
       run:
         working-directory: admin
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: admin/package-lock.json
       - run: npm ci --no-audit --no-fund
-      - run: npm run typecheck && npm test && npm run build
+      - run: npm run build  # создаёт next-env.d.ts: без него typecheck не знает css-импорты
+      - run: npm run typecheck && npm test
