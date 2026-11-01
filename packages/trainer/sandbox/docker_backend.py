@@ -11,7 +11,12 @@ from .backend import ExecResult, Status
 log = logging.getLogger(__name__)
 # sshd и chpasswd в контейнере работают от root: нужны только эти возможности
 CAPS = ["CHOWN", "SETUID", "SETGID", "AUDIT_WRITE", "SYS_CHROOT", "DAC_OVERRIDE", "FOWNER", "KILL"]
-_LOCK = threading.Lock()  # ensure одного контейнера из двух потоков (вход + терминал) не должен создать дубль
+_LOCK = threading.Lock()
+BRIDGE, SUBNET = "trbr-sandbox", "172.31.250.0/24"
+
+
+class SandboxNetworkError(RuntimeError):
+    """Сеть песочниц не та, на которую настроен межсетевой экран."""  # ensure одного контейнера из двух потоков (вход + терминал) не должен создать дубль
 
 
 class DockerTty:
@@ -67,12 +72,21 @@ class DockerBackend:
         if self._network_ready:
             return
         name = self._settings.sandbox_network
-        if not self._client.networks.list(names=[name]):
+        existing = self._client.networks.list(names=[name])
+        if existing:
+            attrs = existing[0].attrs
+            bridge = (attrs.get("Options") or {}).get("com.docker.network.bridge.name")
+            subnets = [c.get("Subnet") for c in (attrs.get("IPAM") or {}).get("Config") or []]
+            if bridge != BRIDGE or subnets != [SUBNET]:
+                # экран завязан на мост и подсеть: в чужой сети песочницы остались бы без него — не запускаем
+                raise SandboxNetworkError(f"сеть {name}: мост {bridge}, подсеть {subnets} — нужны {BRIDGE} и {SUBNET};"
+                                          " удалите сеть и запустите infra/deploy/deploy.sh")
+        else:
             import docker.types
             # мост и подсеть закреплены: на них завязан межсетевой экран (infra/deploy/sandbox-firewall.sh)
-            ipam = docker.types.IPAMConfig(pool_configs=[docker.types.IPAMPool(subnet="172.31.250.0/24")])
+            ipam = docker.types.IPAMConfig(pool_configs=[docker.types.IPAMPool(subnet=SUBNET)])
             self._client.networks.create(name, driver="bridge", ipam=ipam, options={
-                "com.docker.network.bridge.enable_icc": "false", "com.docker.network.bridge.name": "trbr-sandbox"})
+                "com.docker.network.bridge.enable_icc": "false", "com.docker.network.bridge.name": BRIDGE})
         self._network_ready = True
 
     def _get(self, name: str):

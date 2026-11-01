@@ -11,7 +11,13 @@ for dst in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10 
     iptables -A TRAINER-SANDBOX -d "$dst" -j DROP
 done
 iptables -A TRAINER-SANDBOX -j RETURN
-iptables -C DOCKER-USER -i "$BR" -j TRAINER-SANDBOX 2>/dev/null || iptables -I DOCKER-USER -i "$BR" -j TRAINER-SANDBOX
-# до самого хоста (не через FORWARD): любые его адреса и порты
-iptables -C INPUT -i "$BR" -j DROP 2>/dev/null || iptables -I INPUT -i "$BR" -j DROP
+SUBNET=172.31.250.0/24
+# и по мосту, и по подсети: одно правило страхует другое
+for match in "-i $BR" "-s $SUBNET"; do
+    # shellcheck disable=SC2086
+    iptables -C DOCKER-USER $match -j TRAINER-SANDBOX 2>/dev/null || iptables -I DOCKER-USER $match -j TRAINER-SANDBOX
+    # до самого хоста (не через FORWARD): любые его адреса и порты
+    # shellcheck disable=SC2086
+    iptables -C INPUT $match -j DROP 2>/dev/null || iptables -I INPUT $match -j DROP
+done
 echo "sandbox firewall: $BR → только интернет"
