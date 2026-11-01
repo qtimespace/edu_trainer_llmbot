@@ -14,8 +14,9 @@ def container_name(student_id: str) -> str:
     return f"trainer-sbx-{student_id.replace('-', '')[:12]}"
 
 
-def volume_name(student_id: str) -> str:
-    return f"trainer-home-{student_id.replace('-', '')[:12]}"
+def volume_name(seat: int) -> str:
+    """Том /home места в группе: создаётся заранее с ограничением размера (deploy.sh), при пересоздании — очищается."""
+    return f"trainer-home-seat{seat}"
 
 
 class NoSandbox(Exception):
@@ -35,11 +36,11 @@ class SandboxManager:
     def ensure_for(self, student_id: str) -> None:
         student = self._student(student_id)
         self._backend.ensure(container_name(student_id), {"LESSON_PASSWORD": student.lesson_password},
-                             volume_name(student_id))
+                             volume_name(student.seat))
 
     def reset(self, student_id: str) -> None:
-        self._student(student_id)
-        self._backend.remove(container_name(student_id), volume_name(student_id), wipe=True)
+        student = self._student(student_id)
+        self._backend.remove(container_name(student_id), volume_name(student.seat), wipe=True)
         self.ensure_for(student_id)
 
     def status(self, student_id: str) -> Status:

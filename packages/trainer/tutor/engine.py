@@ -93,6 +93,9 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
             return
         results = run_checks(manager, student_id, task.checks)
         history = recent_history(manager, student_id)
+        if not JobStore(engine).owns(job_id):  # пока шли проверки, ход признали зависшим — деньги не тратим
+            log.warning("ход по заданию %s отобран как зависший — вызов модели пропущен", task_id)
+            return
         try:
             resp = build_gateway(engine, deps.settings, student_id=student_id, providers=deps.providers).execute(
                 GatewayRequest(task_id=task_id, agent=agent.key, policy=POLICY, capabilities=[],

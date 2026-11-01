@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     sandbox_mem: str = "384m"
     sandbox_cpus: float = 0.5
     sandbox_pids: int = 256
+    sandbox_tmp_size: str = "64m"  # /tmp, /var/tmp, /dev/shm в песочнице (tmpfs, в счёт памяти)
+    # /home — заранее созданный том с ограничением размера (deploy.sh); False — только для разработки
+    sandbox_disk_quota: bool = True
     # "docker" — настоящие контейнеры; "fake" — заглушка для разработки без Docker
     sandbox_backend: str = "docker"
 

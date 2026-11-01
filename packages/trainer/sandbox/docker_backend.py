@@ -1,8 +1,14 @@
-"""Песочницы на настоящем Docker (Docker SDK). Контейнер на ученика: лимиты, без портов наружу, без связи
-с соседями (bridge без ICC), выход в интернет есть; домашние папки — именованный том /home."""
+"""Песочницы на настоящем Docker (Docker SDK). Контейнер на ученика: лимиты памяти/CPU/процессов и диска, без портов
+наружу, без связи с соседями (bridge без ICC), выход в интернет есть.
+
+Диск: /home — заранее созданный том места ученика с ограниченным размером (ext4-образ через loop, см.
+infra/deploy/deploy.sh), /tmp и /var/tmp — tmpfs с размером; ученик не root и больше никуда писать не может.
+"""
 import logging
 import select
+import socket
 import threading
+import uuid
 
 from trainer.settings import Settings
 
@@ -11,19 +17,28 @@ from .backend import ExecResult, Status
 log = logging.getLogger(__name__)
 # sshd и chpasswd в контейнере работают от root: нужны только эти возможности
 CAPS = ["CHOWN", "SETUID", "SETGID", "AUDIT_WRITE", "SYS_CHROOT", "DAC_OVERRIDE", "FOWNER", "KILL"]
-_LOCK = threading.Lock()
+_LOCK = threading.Lock()  # ensure одного контейнера из двух потоков (вход + терминал) не должен создать дубль
 BRIDGE, SUBNET = "trbr-sandbox", "172.31.250.0/24"
+OUTPUT_CAP = 65536
+# вывод команды — через файл: процесс, ушедший в фон (setsid, nohup … &), не держит поток exec открытым
+_EXEC = ('f=$(mktemp); timeout -k 2 "$0" "$@" >"$f" 2>&1; rc=$?; head -c ' + str(OUTPUT_CAP)
+         + ' "$f"; rm -f "$f"; exit $rc')
 
 
 class SandboxNetworkError(RuntimeError):
-    """Сеть песочниц не та, на которую настроен межсетевой экран."""  # ensure одного контейнера из двух потоков (вход + терминал) не должен создать дубль
+    """Сеть песочниц не та, на которую настроен межсетевой экран."""
+
+
+class SandboxDiskError(RuntimeError):
+    """Нет заранее созданного тома места ученика с квотой — песочницу без ограничения диска не запускаем."""
 
 
 class DockerTty:
-    def __init__(self, api, exec_id: str, sock):
-        self._api, self._exec_id = api, exec_id
+    def __init__(self, api, exec_id: str, sock, on_close=None):
+        self._api, self._exec_id, self._on_close = api, exec_id, on_close
         self._sock = getattr(sock, "_sock", sock)  # docker-py отдаёт обёртку над сокетом
-        self._sock.setblocking(False)
+        # блокирующий с таймаутом: большая вставка в терминал дописывается целиком, а не рвёт соединение
+        self._sock.settimeout(10)
         self._closed = False
 
     def write(self, data: bytes) -> None:
@@ -38,7 +53,7 @@ class DockerTty:
             return b""
         try:
             data = self._sock.recv(65536)
-        except (BlockingIOError, InterruptedError):
+        except (BlockingIOError, InterruptedError, socket.timeout):
             return b""
         except OSError:
             data = b""
@@ -54,11 +69,19 @@ class DockerTty:
             pass
 
     def close(self) -> None:
+        if self._closed and self._on_close is None:
+            return
         self._closed = True
         try:
             self._sock.close()
         except OSError:
             pass
+        on_close, self._on_close = self._on_close, None
+        if on_close is not None:  # docker не убивает процессы exec при отключении клиента — убиваем сами
+            try:
+                on_close()
+            except Exception:  # noqa: BLE001
+                log.warning("сессия терминала не завершена", exc_info=True)
 
 
 class DockerBackend:
@@ -96,6 +119,14 @@ class DockerBackend:
         except docker.errors.NotFound:
             return None
 
+    def _volume_exists(self, volume: str) -> bool:
+        import docker.errors
+        try:
+            self._client.volumes.get(volume)
+            return True
+        except docker.errors.NotFound:
+            return False
+
     def ensure(self, name: str, env: dict[str, str], volume: str) -> None:
         with _LOCK:
             box = self._get(name)
@@ -103,11 +134,15 @@ class DockerBackend:
                 if box.status != "running":
                     box.start()
                 return
-            self._ensure_network()
             s = self._settings
+            if s.sandbox_disk_quota and not self._volume_exists(volume):
+                raise SandboxDiskError(f"нет тома {volume} с ограничением размера — запустите infra/deploy/deploy.sh")
+            self._ensure_network()
+            tmp = f"size={s.sandbox_tmp_size},mode=1777"
             self._client.containers.run(
                 s.sandbox_image, name=name, detach=True, environment=env, hostname="lab",
-                volumes={volume: {"bind": "/home", "mode": "rw"}}, network=s.sandbox_network,
+                volumes={volume: {"bind": "/home", "mode": "rw"}}, tmpfs={"/tmp": tmp, "/var/tmp": tmp},
+                shm_size=s.sandbox_tmp_size, network=s.sandbox_network,
                 extra_hosts={"lab": "127.0.0.1"}, mem_limit=s.sandbox_mem, memswap_limit=s.sandbox_mem,
                 nano_cpus=int(s.sandbox_cpus * 1e9), pids_limit=s.sandbox_pids, cap_drop=["ALL"], cap_add=CAPS,
                 restart_policy={"Name": "unless-stopped"}, labels={"trainer": "sandbox"})
@@ -118,27 +153,41 @@ class DockerBackend:
             box = self._get(name)
             if box is not None:
                 box.remove(force=True)
-            if wipe:
-                try:
-                    self._client.volumes.get(volume).remove(force=True)
-                except docker.errors.NotFound:
-                    pass
+            if not wipe:
+                return
+            if self._settings.sandbox_disk_quota:
+                # том с квотой создан заранее (loop-образ) — не удаляем, а очищаем; домашние папки пересоздаст entrypoint
+                self._client.containers.run(self._settings.sandbox_image, entrypoint=["find", "/home", "-mindepth", "1",
+                                            "-delete"], volumes={volume: {"bind": "/home", "mode": "rw"}},
+                                            network_mode="none", remove=True)
+                return
+            try:
+                self._client.volumes.get(volume).remove(force=True)
+            except docker.errors.NotFound:
+                pass
 
     def exec(self, name: str, cmd: list[str], user: str, timeout_s: int) -> ExecResult:
         box = self._get(name)
         if box is None:
             return ExecResult(127, "песочница не запущена")
         # timeout -k: зависшая проверка (бесконечный цикл ученика) не держит поток API дольше timeout_s
-        res = box.exec_run(["timeout", "-k", "2", str(timeout_s), *cmd], user=user, demux=False)
+        res = box.exec_run(["sh", "-c", _EXEC, str(timeout_s), *cmd], user=user, demux=False)
         out = (res.output or b"").decode("utf-8", errors="replace")
         return ExecResult(res.exit_code if res.exit_code is not None else 1, out)
 
     def attach_tty(self, name: str, user: str) -> DockerTty:
         api = self._client.api
-        exec_id = api.exec_create(name, ["bash", "-l"], stdin=True, tty=True, user=user,
-                                  workdir=f"/home/{user}", environment={"TERM": "xterm-256color"})["Id"]
+        token = uuid.uuid4().hex
+        pidfile = f"/tmp/.tty-{token}"
+        # оболочка запоминает свой номер сессии: при закрытии вкладки завершаем её вместе с ssh и всем, что запущено
+        exec_id = api.exec_create(name, ["bash", "-c", f"echo $$ > {pidfile}; exec bash -l"], stdin=True, tty=True,
+                                  user=user, workdir=f"/home/{user}", environment={"TERM": "xterm-256color"})["Id"]
         sock = api.exec_start(exec_id, socket=True, tty=True)
-        return DockerTty(api, exec_id, sock)
+
+        def kill_session() -> None:
+            self.exec(name, ["sh", "-c", f'sid=$(cat {pidfile} 2>/dev/null) || exit 0; pkill -HUP -s "$sid";'
+                                         f' sleep 1; pkill -KILL -s "$sid"; rm -f {pidfile}'], user="root", timeout_s=5)
+        return DockerTty(api, exec_id, sock, on_close=kill_session)
 
     def status(self, name: str) -> Status:
         box = self._get(name)

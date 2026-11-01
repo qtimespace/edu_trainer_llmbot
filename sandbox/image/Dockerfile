@@ -13,11 +13,11 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
 COPY sshd_config /etc/ssh/sshd_config.d/trainer.conf
 COPY history.sh /etc/profile.d/trainer-history.sh
 COPY motd /etc/motd
-COPY lobby_profile /home/lobby/.bash_profile
+COPY lobby_profile /etc/trainer-skel/lobby.bash_profile
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh \
     && cat /etc/profile.d/trainer-history.sh >> /etc/bash.bashrc \
-    && chown lobby:lobby /home/lobby/.bash_profile \
+    && chmod 0644 /etc/trainer-skel/lobby.bash_profile \
     && ssh-keygen -A
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

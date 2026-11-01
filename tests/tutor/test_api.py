@@ -202,3 +202,20 @@ def test_long_history_lines_are_capped(world):
     task = TaskStore(engine).get(ids[0])
     prompt = _prompt(task, [], ["student$ echo " + "x" * 50000] * 40, [])
     assert len(prompt) < 20000
+
+
+def test_reclaimed_turn_does_not_call_model(world):
+    """Ход признан зависшим и отдан другому — старый поток не тратит деньги."""
+    from trainer.settings import Settings
+    from trainer.tutor.engine import tutor_turn
+    from trainer.tutor.jobs import LlmDeps
+    import apps.api.sandbox as sandbox_api
+    from trainer.sandbox.manager import SandboxManager
+    engine, kid, kids, ids, passing = world
+    fake = install_fake_llm(app, [reply({"reply": "x", "done": False})])
+    TaskStore(engine).set_status(ids[0], "in_progress")
+    job = JobStore(engine).start("devops", task_id=ids[0], student_id=kids[0])
+    JobStore(engine).finish(job, ok=False)  # как будто его закрыли по таймауту
+    tutor_turn(LlmDeps(engine, Settings(_env_file=None), {"openrouter": fake}),
+               SandboxManager(sandbox_api.BACKENDS["fake"], engine), ids[0], kids[0], job)
+    assert fake.calls == []

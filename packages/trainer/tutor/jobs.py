@@ -54,9 +54,16 @@ class JobStore:
         except IntegrityError:
             return None
 
+    def owns(self, job_id: str) -> bool:
+        """Ход всё ещё за этим потоком (не закрыт как зависший и не отдан другому)."""
+        with self._engine.connect() as c:
+            return c.execute(text("SELECT 1 FROM agent_jobs WHERE id = CAST(:i AS uuid) AND status = 'running'"),
+                             {"i": job_id}).first() is not None
+
     def finish(self, job_id: str, ok: bool) -> None:
         with self._engine.begin() as c:
-            c.execute(text("UPDATE agent_jobs SET status = :s, finished_at = now() WHERE id = CAST(:i AS uuid)"),
+            c.execute(text("UPDATE agent_jobs SET status = :s, finished_at = now()"
+                           " WHERE id = CAST(:i AS uuid) AND status = 'running'"),
                       {"i": job_id, "s": "done" if ok else "failed"})
 
     def running(self, student_id: str | None = None) -> list[Job]:
