@@ -20,7 +20,11 @@ Python 3.12 (строго; `pgserver` для тестов — cp312), uv выз�
   `pytest -m docker`, только на сервере)
 - Миграции: `python -m uv run alembic upgrade head` (URL из `TRAINER_DATABASE_URL`)
 - API: `python -m uv run uvicorn apps.api.main:app --reload`
-- Панель: `cd admin && npm run dev` (прокси `/api/*` → `TRAINER_API_URL`); проверки — `npm run typecheck && npm test && npm run build`
+- Панель: `cd admin && npm run dev` (прокси `/api/*` → `TRAINER_API_URL`; терминал — `NEXT_PUBLIC_WS_URL=ws://localhost:8000`,
+  Next WebSocket не проксирует); проверки — `npm run typecheck && npm test && npm run build`
+- Без Docker (машина разработчика): `TRAINER_SANDBOX_BACKEND=fake` — песочница-заглушка с эхо-терминалом
+- Выкладка: `docs/deploy.md` (VPS 89.125.90.67, compose `infra/docker/`, межсетевой экран песочниц
+  `infra/deploy/sandbox-firewall.sh`, payway — только после подтверждения владельца)
 
 ## Конвенции
 - Пакет `trainer`, env-префикс `TRAINER_`. SQL — `text()` как в DocOps.
@@ -29,5 +33,11 @@ Python 3.12 (строго; `pgserver` для тестов — cp312), uv выз�
 - Задание `done` — только если прошли **все** проверочные команды.
 - Ключи LLM — только через `SecretBox` (AES-GCM), наружу — только «задан/не задан».
 
+- Проверка задания — только детерминированные команды (`checks`) в чистом окружении (`env -i`, `bash --noprofile
+  --norc`) от имени student: ученик не подменит их алиасом. Ход агента — один на задание (частичный UNIQUE в agent_jobs).
+- Песочница: без Docker-сокета, без портов наружу, сеть без ICC + DOCKER-USER (только интернет); ssh-урок — внутри
+  браузерного терминала (`lobby` → `ssh student@lab`).
+
 ## Статус
-Очередь 1 в работе (ветка `feat/queue1`).
+Очередь 1 (ветка `feat/queue1`): бэкенд и панель готовы, тесты зелёные; выкладка — ждёт SSH-доступа к VPS.
+Не проверено локально: тесты `-m docker` (нет Docker на машине разработчика), внешний вид офиса глазами.

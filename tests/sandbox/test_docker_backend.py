@@ -60,10 +60,10 @@ def test_no_icc():
 def test_no_host_access(box):
     """После infra/deploy/sandbox-firewall.sh: шлюз сети (хост) и частные сети недоступны, интернет — доступен."""
     backend, name = box
-    gw = backend.exec(name, ["sh", "-c", "ip route 2>/dev/null | awk '/default/{print $3}' || "
-                                         "awk '$2==\"00000000\"{print $3}' /proc/net/route"], user="root",
+    gw = backend.exec(name, ["sh", "-c", "ip route | awk '/default/{print $3}'"], user="root",
                       timeout_s=5).output.strip()
-    r = backend.exec(name, ["bash", "-c", f"timeout 3 bash -c '</dev/tcp/{gw or '172.17.0.1'}/22'"], user="student",
+    assert gw
+    r = backend.exec(name, ["bash", "-c", f"timeout 3 bash -c '</dev/tcp/{gw}/22'"], user="student",
                      timeout_s=10)
     assert r.exit_code != 0
     web = backend.exec(name, ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "https://github.com"],

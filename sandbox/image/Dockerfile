@@ -4,7 +4,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         bash coreutils nano vim-tiny less procps curl ca-certificates git python3 \
-        openssh-client openssh-server sshpass iputils-ping tree file man-db \
+        openssh-client openssh-server sshpass iputils-ping iproute2 tree file man-db \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -s /bin/bash lobby \
     && useradd -m -s /bin/bash student \
