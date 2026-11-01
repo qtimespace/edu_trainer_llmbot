@@ -24,5 +24,5 @@ def feed(student_id: str, engine: Engine = Depends(engine_dep)) -> list[dict]:
         raise HTTPException(status_code=404, detail="ученик не найден")
     return [{"at": m.created_at.isoformat(), "author": m.author, "agent": m.agent_key, "task_title": title,
              "text": m.text, "model": m.meta.get("model"), "cost_usd": m.meta.get("cost_usd"),
-             "checks": m.meta.get("checks", [])}
+             "checks": m.meta.get("checks", []), "reason": m.meta.get("reason")}
             for m, title in MessageStore(engine).agent_feed(student_id)]

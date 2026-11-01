@@ -3,7 +3,11 @@ import { Badge, Card, Empty } from "@/components/ui";
 import { useApi } from "@/lib/hooks";
 
 type FeedItem = { at: string; author: "agent" | "system"; agent: string | null; task_title: string; text: string;
-  model: string | null; cost_usd: number | null; checks: { about: string; passed: boolean }[] };
+  model: string | null; cost_usd: number | null; checks: { about: string; passed: boolean }[];
+  reason: string | null };
+
+const REASON: Record<string, string> = { budget_exceeded: "лимит ученика", quota_exceeded: "нет баланса ключа",
+  auth: "ключ не работает", rate_limited: "лимит запросов", bad_reply: "ответ не JSON", exhausted: "модели не ответили" };
 
 // Окно «ответы LLM» по комнате ученика (только преподаватель).
 export function RoomFeed({ studentId, name }: { studentId: string; name: string }) {
@@ -19,6 +23,7 @@ export function RoomFeed({ studentId, name }: { studentId: string; name: string 
             <span className="truncate">{m.task_title}</span>
             {m.model && <span className="font-mono">{m.model}</span>}
             {m.cost_usd != null && <span>${Number(m.cost_usd).toFixed(4)}</span>}
+            {m.reason && <Badge tone="red">{REASON[m.reason] ?? m.reason}</Badge>}
           </div>
           <div className="whitespace-pre-wrap">{m.text}</div>
           {m.checks.length > 0 && <div className="mt-1 text-xs">

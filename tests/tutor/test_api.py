@@ -143,3 +143,62 @@ def test_student_cannot_post_to_foreign_task(world):
     assert kid.post(f"/me/tasks/{ids[1]}/start").status_code == 404
     assert kid.post(f"/me/tasks/{ids[1]}/messages", json={"text": "x"}).status_code == 404
     assert kid.get(f"/me/tasks/{ids[1]}/messages").status_code == 404
+
+
+def test_tiny_budget_left_is_no_budget_not_retry(world):
+    engine, kid, kids, ids, passing = world
+    passing["test -f ~/Temp/test.py"] = False
+    GroupStore(engine).update_student(kids[0], budget_usd=0.0005)
+    fake = install_fake_llm(app, [])
+    kid.post(f"/me/tasks/{ids[0]}/start")
+    msg = kid.get(f"/me/tasks/{ids[0]}/messages").json()["messages"][0]
+    assert fake.calls == [] and "Лимит" in msg["text"] and "на сегодня" not in msg["text"]
+
+
+def test_teacher_key_out_of_money_is_explained(world, api):
+    engine, kid, kids, ids, passing = world
+    passing["test -f ~/Temp/test.py"] = False
+    install_fake_llm(app, [ProviderError("quota_exceeded", "402")] * 3)
+    kid.post(f"/me/tasks/{ids[0]}/start")
+    msg = kid.get(f"/me/tasks/{ids[0]}/messages").json()["messages"][0]
+    assert "преподавател" in msg["text"]
+    teacher = TestClient(app)
+    AccountStore(api).create_account("anna", PASS, role="teacher")
+    login(teacher, "anna")
+    feed = teacher.get(f"/office/rooms/{kids[0]}/feed").json()
+    assert feed[0]["reason"] == "quota_exceeded"
+
+
+def test_one_turn_per_student_across_tasks(world):
+    engine, kid, kids, ids, passing = world
+    tasks = TaskStore(engine)
+    lesson = tasks.get(ids[0]).lesson_id
+    other = tasks.create_draft(lesson, kids[0], "devops", "Второе", "", CHECKS)
+    tasks.approve(other.id)
+    install_fake_llm(app, [])
+    tasks.set_status(ids[0], "in_progress")
+    JobStore(engine).start("devops", task_id=ids[0], student_id=kids[0])
+    assert kid.post(f"/me/tasks/{other.id}/start").status_code == 409
+    assert tasks.get(other.id).status == "todo"
+
+
+def test_stale_running_job_does_not_block_forever(world):
+    engine, kid, kids, ids, passing = world
+    from sqlalchemy import text
+    passing["test -f ~/Temp/test.py"] = False
+    install_fake_llm(app, [reply({"reply": "Снова привет", "done": False})])
+    tasks = TaskStore(engine)
+    tasks.set_status(ids[0], "in_progress")
+    tasks.set_status(ids[0], "waiting_student")
+    JobStore(engine).start("devops", task_id=ids[0], student_id=kids[0])
+    with engine.begin() as c:
+        c.execute(text("UPDATE agent_jobs SET started_at = now() - interval '10 minutes'"))
+    assert kid.post(f"/me/tasks/{ids[0]}/messages", json={"text": "ау"}).status_code == 202
+
+
+def test_long_history_lines_are_capped(world):
+    from trainer.tutor.engine import _prompt
+    engine, kid, kids, ids, passing = world
+    task = TaskStore(engine).get(ids[0])
+    prompt = _prompt(task, [], ["student$ echo " + "x" * 50000] * 40, [])
+    assert len(prompt) < 20000

@@ -28,13 +28,23 @@ class LlmDeps:
     providers: dict | None = None
 
 
+STALE_MINUTES = 5  # ход дольше — считаем зависшим (поток умер или песочница не ответила)
+
+
 class JobStore:
     def __init__(self, engine: Engine):
         self._engine = engine
 
     def start(self, agent_key: str, *, task_id: str | None = None, lesson_id: str | None = None,
               student_id: str | None = None) -> str | None:
-        """None — по этому заданию ход уже идёт (частичный UNIQUE по task_id)."""
+        """None — ход уже идёт: по этому заданию или по другому заданию того же ученика (частичные UNIQUE)."""
+        if task_id is not None:  # зависший ход не блокирует задание до перезапуска API
+            with self._engine.begin() as c:
+                c.execute(text("""UPDATE agent_jobs SET status = 'failed', finished_at = now()
+                                  WHERE status = 'running' AND task_id IS NOT NULL
+                                    AND started_at < now() - make_interval(mins => :m)
+                                    AND (task_id = CAST(:t AS uuid) OR student_id = CAST(:s AS uuid))"""),
+                          {"m": STALE_MINUTES, "t": task_id, "s": student_id})
         try:
             with self._engine.begin() as c:
                 return str(c.execute(text("""
@@ -60,8 +70,9 @@ class JobStore:
 
     def is_running(self, task_id: str) -> bool:
         with self._engine.connect() as c:
-            return c.execute(text("SELECT 1 FROM agent_jobs WHERE task_id = CAST(:t AS uuid) AND status = 'running'"),
-                             {"t": task_id}).first() is not None
+            return c.execute(text("""SELECT 1 FROM agent_jobs WHERE task_id = CAST(:t AS uuid) AND status = 'running'
+                                     AND started_at >= now() - make_interval(mins => :m)"""),
+                             {"t": task_id, "m": STALE_MINUTES}).first() is not None
 
     def fail_stale(self) -> int:
         """После перезапуска API «зависшие» ходы закрываются: потоки умерли вместе с процессом."""
