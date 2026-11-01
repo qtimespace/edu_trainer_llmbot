@@ -4,8 +4,10 @@
 set -eu
 cd "$(dirname "$0")/../.."
 FREE_GB=$(df -BG --output=avail / | tail -1 | tr -dc 0-9)
-if [ "$FREE_GB" -lt 5 ]; then
-    echo "свободно ${FREE_GB} ГБ — для сборки образов нужно ≥ 5 ГБ; освободите место или соберите вне сервера"
+NEED_GB=5  # первая сборка; повторные идут из кэша слоёв
+docker image inspect trainer-sandbox:1 >/dev/null 2>&1 && NEED_GB=2
+if [ "$FREE_GB" -lt "$NEED_GB" ]; then
+    echo "свободно ${FREE_GB} ГБ — для сборки образов нужно ≥ ${NEED_GB} ГБ; освободите место или соберите вне сервера"
     exit 1
 fi
 # 1) экран — раньше песочниц; служба поднимает его при загрузке до Docker
@@ -45,4 +47,25 @@ docker build -t trainer-sandbox:1 sandbox/image
 docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d --build
 # 5) Caddy numbermania — в сеть тренажёра (только он и тренажёр)
 docker network connect trainer-edge numbermania-caddy-1 2>/dev/null || true
+# 6) автовыкладка: раз в минуту новый коммит main с зелёным CI (infra/deploy/autodeploy.sh)
+cat > /etc/systemd/system/trainer-autodeploy.service <<UNIT
+[Unit]
+Description=Trainer autodeploy from GitHub main
+After=docker.service network-online.target
+[Service]
+Type=oneshot
+TimeoutStartSec=30min
+ExecStart=/bin/sh $(pwd)/infra/deploy/autodeploy.sh
+UNIT
+cat > /etc/systemd/system/trainer-autodeploy.timer <<UNIT
+[Unit]
+Description=Trainer autodeploy check every minute
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now trainer-autodeploy.timer
 docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env ps

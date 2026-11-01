@@ -1,6 +1,6 @@
-# Вставить в Caddyfile numbermania (поддомен — свой). /api и /ws — прямо в API, мимо Next:
+# Вставить в Caddyfile numbermania. /api и /ws — прямо в API, мимо Next:
 # Next не проксирует WebSocket, а API видит настоящий IP ученика (X-Forwarded-For от Caddy).
-trainer.example.ru {
+edu.qfenek.com {
 	handle /ws/* {
 		reverse_proxy trainer-api:8000
 	}

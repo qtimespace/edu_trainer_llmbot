@@ -7,7 +7,8 @@
 
 - SSH доступен: `ssh -i ~/.ssh/edu_trainer_ed25519 root@89.125.90.67 'nproc; free -h; df -h /'`
   (≥ 2 CPU, ≥ 4 ГБ RAM, ≥ 5 ГБ свободно на диске — иначе стоп).
-- Поддомен (например `trainer.<домен>`) — A-запись на `89.125.90.67`.
+- Поддомен `edu.qfenek.com` — A-запись на `89.125.90.67`, без AAAA (иначе Let's Encrypt идёт по IPv6 и не выпускает
+  сертификат).
 
 ## 1. payway — только с подтверждения владельца
 
@@ -25,11 +26,22 @@ cp infra/docker/.env.example infra/docker/.env   # заполнить
 sh infra/deploy/deploy.sh                        # экран и сеть песочниц, образ, стек, Caddy → trainer-edge
 ```
 
-Вставить `infra/docker/Caddyfile.snippet` (со своим поддоменом) в Caddyfile numbermania, `docker exec
+Вставить `infra/docker/Caddyfile.snippet` в Caddyfile numbermania, `docker exec
 numbermania-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
 
 Важно: `/api/*` и `/ws/*` идут из Caddy прямо в API — WebSocket терминала Next не проксирует, а API по
 `X-Forwarded-For` видит настоящий IP ученика (ограничение попыток входа по IP не закрывает вход всем сразу).
+
+### Автовыкладка
+
+`deploy.sh` ставит `trainer-autodeploy.timer`: раз в минуту сервер делает `git fetch` ветки `main` и, если там новый
+коммит и CI GitHub по нему зелёный (`.github/workflows/ci.yml`), — `git reset --hard` на него и `deploy.sh`.
+Красный CI или упавший `deploy.sh` — коммит пропускается до следующего. Ключей в GitHub нет: репозиторий публичный.
+
+```sh
+journalctl -u trainer-autodeploy -n 50     # что выкладывалось
+cat /srv/trainer/deployed                  # выложенный коммит
+```
 
 ## 3. Проверки на сервере
 

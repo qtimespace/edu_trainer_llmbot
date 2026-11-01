@@ -23,7 +23,8 @@ Python 3.12 (строго; `pgserver` для тестов — cp312), uv выз�
 - Панель: `cd admin && npm run dev` (прокси `/api/*` → `TRAINER_API_URL`; терминал — `NEXT_PUBLIC_WS_URL=ws://localhost:8000`,
   Next WebSocket не проксирует); проверки — `npm run typecheck && npm test && npm run build`
 - Без Docker (машина разработчика): `TRAINER_SANDBOX_BACKEND=fake` — песочница-заглушка с эхо-терминалом
-- Выкладка: `docs/deploy.md` (VPS 89.125.90.67, compose `infra/docker/`, межсетевой экран песочниц
+- Выкладка: `docs/deploy.md` (VPS 89.125.90.67, `edu.qfenek.com`, автовыкладка коммитов `main` с зелёным CI —
+  `infra/deploy/autodeploy.sh` по таймеру, compose `infra/docker/`, межсетевой экран песочниц
   `infra/deploy/sandbox-firewall.sh`, payway — только после подтверждения владельца)
 
 ## Конвенции

@@ -1,0 +1,30 @@
+# Тесты на каждый push и PR. Сервер выкладывает коммит main только при зелёном CI (infra/deploy/autodeploy.sh).
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv sync
+      - run: uv run pytest -q  # тесты с настоящим Docker (-m docker) — только на сервере
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck && npm test && npm run build
