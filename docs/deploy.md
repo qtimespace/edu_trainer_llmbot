@@ -21,8 +21,8 @@
 
 ```sh
 git clone https://github.com/qtimespace/edu_trainer_llmbot.git /opt/trainer && cd /opt/trainer
-cp infra/docker/.env.example infra/docker/.env   # заполнить; CADDY_NETWORK — docker network ls
-sh infra/deploy/deploy.sh                        # образ песочницы, стек, межсетевой экран песочниц
+cp infra/docker/.env.example infra/docker/.env   # заполнить
+sh infra/deploy/deploy.sh                        # экран и сеть песочниц, образ, стек, Caddy → trainer-edge
 ```
 
 Вставить `infra/docker/Caddyfile.snippet` (со своим поддоменом) в Caddyfile numbermania, `docker exec

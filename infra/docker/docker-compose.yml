@@ -1,4 +1,5 @@
-# Тренажёр на VPS: postgres + api + web. Наружу портов нет — вход через Caddy (сеть CADDY_NETWORK).
+# Тренажёр на VPS: postgres + api + web. Наружу портов нет — вход через Caddy по своей сети trainer-edge
+# (в неё подключён только numbermania-caddy-1: X-Forwarded-For в API может прислать только Caddy).
 # Запуск: docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d --build
 name: trainer
 services:
@@ -33,8 +34,12 @@ services:
       TRAINER_SANDBOX_BACKEND: docker
       TRAINER_SANDBOX_MEM: ${TRAINER_SANDBOX_MEM:-384m}
       TRAINER_SANDBOX_CPUS: ${TRAINER_SANDBOX_CPUS:-0.5}
+    # сокет Docker — чтобы создавать песочницы; ученик до него не дотягивается (только HTTP API)
     volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
-    networks: [trainer, caddy]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    networks: [trainer, edge]
     mem_limit: 512m
 
   web:
@@ -44,7 +49,7 @@ services:
     restart: unless-stopped
     environment:
       TRAINER_API_URL: http://trainer-api:8000
-    networks: [trainer, caddy]
+    networks: [trainer, edge]
     mem_limit: 384m
 
 volumes:
@@ -52,6 +57,5 @@ volumes:
 
 networks:
   trainer: {}
-  caddy:
-    external: true
-    name: ${CADDY_NETWORK:?имя сети Caddy numbermania: docker network ls}
+  edge:
+    name: trainer-edge

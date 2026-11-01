@@ -68,8 +68,11 @@ class DockerBackend:
             return
         name = self._settings.sandbox_network
         if not self._client.networks.list(names=[name]):
-            self._client.networks.create(name, driver="bridge",
-                                         options={"com.docker.network.bridge.enable_icc": "false"})
+            import docker.types
+            # мост и подсеть закреплены: на них завязан межсетевой экран (infra/deploy/sandbox-firewall.sh)
+            ipam = docker.types.IPAMConfig(pool_configs=[docker.types.IPAMPool(subnet="172.31.250.0/24")])
+            self._client.networks.create(name, driver="bridge", ipam=ipam, options={
+                "com.docker.network.bridge.enable_icc": "false", "com.docker.network.bridge.name": "trbr-sandbox"})
         self._network_ready = True
 
     def _get(self, name: str):
