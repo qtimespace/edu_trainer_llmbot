@@ -2,7 +2,7 @@
 import { use, useState } from "react";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Loading, PageTitle, Select, Textarea }
   from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, isUuid } from "@/lib/api";
 import type { Student } from "@/lib/group";
 import { useApi } from "@/lib/hooks";
 import { canApprove, type Check, groupByStudent, type Lesson, STATUS_LABEL, type TeacherTask } from "@/lib/lessons";
@@ -55,7 +55,9 @@ function TaskEditor({ task, tutors, onChange }: { task: TeacherTask; tutors: Age
 }
 
 export default function LessonPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const raw = use(params).id;
+  // id из адреса — только UUID: иначе «../» в ссылке увёл бы POST (с CSRF-токеном) на другой адрес API
+  const id = isUuid(raw) ? raw : "00000000-0000-0000-0000-000000000000";
   const lesson = useApi<Lesson[]>("/lessons", { pollMs: 3000 });
   const tasks = useApi<TeacherTask[]>(`/lessons/${id}/tasks`, { pollMs: 3000 });
   const group = useApi<{ students: Student[] }>("/group");

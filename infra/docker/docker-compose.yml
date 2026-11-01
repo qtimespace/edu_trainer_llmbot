@@ -1,0 +1,57 @@
+# Тренажёр на VPS: postgres + api + web. Наружу портов нет — вход через Caddy (сеть CADDY_NETWORK).
+# Запуск: docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d --build
+name: trainer
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trainer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD}
+      POSTGRES_DB: trainer
+    volumes: [trainer-pg:/var/lib/postgresql/data]
+    networks: [trainer]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trainer"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build: {context: ../.., dockerfile: infra/docker/api.Dockerfile}
+    image: trainer-api:latest
+    container_name: trainer-api
+    restart: unless-stopped
+    depends_on: {postgres: {condition: service_healthy}}
+    environment:
+      TRAINER_DATABASE_URL: postgresql+psycopg://trainer:${POSTGRES_PASSWORD}@postgres:5432/trainer
+      TRAINER_SECRETS_KEYS: ${TRAINER_SECRETS_KEYS:?задайте TRAINER_SECRETS_KEYS}
+      TRAINER_TEACHER_LOGIN: ${TRAINER_TEACHER_LOGIN:?}
+      TRAINER_TEACHER_PASSWORD: ${TRAINER_TEACHER_PASSWORD:?}
+      TRAINER_PUBLIC_ORIGIN: ${TRAINER_PUBLIC_ORIGIN:?например https://trainer.example.ru}
+      TRAINER_SESSION_COOKIE_SECURE: "true"
+      TRAINER_SANDBOX_BACKEND: docker
+      TRAINER_SANDBOX_MEM: ${TRAINER_SANDBOX_MEM:-384m}
+      TRAINER_SANDBOX_CPUS: ${TRAINER_SANDBOX_CPUS:-0.5}
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    networks: [trainer, caddy]
+    mem_limit: 512m
+
+  web:
+    build: {context: ../.., dockerfile: infra/docker/web.Dockerfile}
+    image: trainer-web:latest
+    container_name: trainer-web
+    restart: unless-stopped
+    environment:
+      TRAINER_API_URL: http://trainer-api:8000
+    networks: [trainer, caddy]
+    mem_limit: 384m
+
+volumes:
+  trainer-pg:
+
+networks:
+  trainer: {}
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK:?имя сети Caddy numbermania: docker network ls}

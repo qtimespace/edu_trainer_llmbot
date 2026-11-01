@@ -4,13 +4,15 @@ import { use, useState } from "react";
 import { TaskChat } from "@/components/TaskChat";
 import { Terminal } from "@/components/Terminal";
 import { Badge, Button, ErrorBox, Loading } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, isUuid } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { Office } from "@/lib/rooms";
 import { statusLabel, type StudentTask } from "@/lib/tasks";
 
 export default function TaskPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const raw = use(params).id;
+  // id из адреса — только UUID: иначе «../» в ссылке увёл бы POST (с CSRF-токеном) на другой адрес API
+  const id = isUuid(raw) ? raw : "00000000-0000-0000-0000-000000000000";
   const task = useApi<StudentTask>(`/me/tasks/${id}`);
   const office = useApi<Office>("/office");
   const [generation, setGeneration] = useState(0);
