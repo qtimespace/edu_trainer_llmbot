@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { Button, Card, ErrorBox, Input, Loading, PageTitle, Select } from "@/components/ui";
+import { FlowGraph } from "@/components/FlowGraph";
+import { Button, Card, ErrorBox, Input, Loading, PageTitle, Select, Tabs } from "@/components/ui";
 import { api } from "@/lib/api";
 import { addStage, type Flow, has, moveStage, removeStage, toggle, updateStage } from "@/lib/flow";
 import { useApi } from "@/lib/hooks";
@@ -14,6 +15,7 @@ export default function FlowPage() {
   const [draft, setDraft] = useState<Flow | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [saved, setSaved] = useState(false);
+  const [tab, setTab] = useState<"graph" | "list">("graph");
   const f = draft ?? flow.data;
   if (!f) return <><ErrorBox error={flow.error} /><Loading /></>;
   const tutors = (agents.data ?? []).filter((a) => a.kind === "tutor" && a.enabled);
@@ -31,6 +33,11 @@ export default function FlowPage() {
       {saved && <p className="mb-3 text-sm text-emerald-600">Сохранено — доски учеников уже по новому флоу.</p>}
       <p className="mb-4 text-sm text-zinc-500">Этапы — колонки доски ученика. На каждом этапе задание ведёт свой агент;
         «агент задания» — тот, кого выбрал методист. В «Готово» задание попадает, только когда прошли все проверки.</p>
+      <Tabs<"graph" | "list"> value={tab} onChange={setTab}
+        tabs={[{ key: "graph", label: "Схема" }, { key: "list", label: "Списком" }]} />
+      {draft && <p className="mb-2 text-sm text-amber-700">Есть несохранённые изменения.</p>}
+      {tab === "graph" && <Card><FlowGraph flow={f} tutors={tutors} onChange={edit} /></Card>}
+      {tab === "list" && <>
       <Card title="Этапы" className="mb-4" actions={<Button variant="secondary" onClick={() => edit(addStage(f))}>
         + Этап</Button>}>
         <ol className="space-y-2">
@@ -74,6 +81,7 @@ export default function FlowPage() {
           </table>
         </div>
       </Card>
+      </>}
     </>
   );
 }

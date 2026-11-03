@@ -56,3 +56,10 @@ def test_store_keeps_teachers_flow(engine):
     mine = _flow([("todo", None), ("dev", "python"), ("done", None)], [("todo", "dev"), ("dev", "done")])
     store.save(mine)
     assert store.get() == mine
+
+
+def test_store_keeps_stage_positions_on_the_diagram(engine):
+    mine = _flow([("todo", None), ("dev", None), ("done", None)], [("todo", "dev"), ("dev", "done")])
+    mine = Flow.model_validate({**mine.model_dump(), "layout": {"dev": {"x": 260, "y": 40}, "gone": {"x": 1, "y": 1}}})
+    FlowStore(engine).save(mine)
+    assert FlowStore(engine).get().model_dump()["layout"] == {"dev": {"x": 260, "y": 40}}  # убранных этапов не храним

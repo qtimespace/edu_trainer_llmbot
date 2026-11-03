@@ -16,9 +16,15 @@ class Stage(BaseModel):
     agent_key: str | None = None  # None — агент задания (его выбрал методист)
 
 
+class Point(BaseModel):
+    x: int
+    y: int
+
+
 class Flow(BaseModel):
     stages: list[Stage]
     transitions: list[tuple[str, str]]
+    layout: dict[str, Point] = {}  # положение этапов на схеме «Настройки → Флоу»; нет — раскладка по порядку
 
     @model_validator(mode="after")
     def _valid(self) -> "Flow":
@@ -88,6 +94,8 @@ class FlowStore:
         return Flow.model_validate(doc) if doc else DEFAULT_FLOW
 
     def save(self, flow: Flow) -> Flow:
+        keys = {st.key for st in flow.stages}
+        flow = flow.model_copy(update={"layout": {k: p for k, p in flow.layout.items() if k in keys}})
         with self._engine.begin() as c:
             c.execute(text("""INSERT INTO flow (id, document) VALUES (1, CAST(:d AS jsonb))
                               ON CONFLICT (id) DO UPDATE SET document = EXCLUDED.document, updated_at = now()"""),
