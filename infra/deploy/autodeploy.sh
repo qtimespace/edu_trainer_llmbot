@@ -43,6 +43,7 @@ main() {  # тело в функции: git reset меняет этот файл
     if sh infra/deploy/deploy.sh; then
         echo "$new" > "$DEPLOYED"
         docker image prune -f >/dev/null  # старые слои прошлых сборок — место на диске не кончается
+        docker builder prune -f --keep-storage 1GB >/dev/null  # кэш сборки — не больше 1 ГБ
     else
         echo "deploy.sh упал — $new не выложен; следующий коммит попробует снова"
         echo "$new" > "$FAILED"
