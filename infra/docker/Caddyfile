@@ -1,6 +1,8 @@
-# Вставить в Caddyfile numbermania. /api и /ws — прямо в API, мимо Next:
+# Вход тренажёра: сертификат Let's Encrypt для TRAINER_DOMAIN. /api и /ws — прямо в API, мимо Next:
 # Next не проксирует WebSocket, а API видит настоящий IP ученика (X-Forwarded-For от Caddy).
-edu.qfenek.com {
+{$TRAINER_DOMAIN} {
+	encode zstd gzip
+	header -Server
 	handle /ws/* {
 		reverse_proxy trainer-api:8000
 	}

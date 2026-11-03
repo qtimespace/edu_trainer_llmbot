@@ -1,8 +1,22 @@
-# Тренажёр на VPS: postgres + api + web. Наружу портов нет — вход через Caddy по своей сети trainer-edge
-# (в неё подключён только numbermania-caddy-1: X-Forwarded-For в API может прислать только Caddy).
+# Тренажёр на VPS: caddy + postgres + api + web. Наружу — только Caddy (80/443, сертификат сам); api и web —
+# в сети trainer-edge вместе с ним: X-Forwarded-For в API присылает только наш Caddy.
 # Запуск: docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d --build
 name: trainer
 services:
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: trainer-caddy
+    restart: unless-stopped
+    environment:
+      TRAINER_DOMAIN: ${TRAINER_DOMAIN:?например edu.qfenek.com}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [edge]
+    mem_limit: 128m
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -29,7 +43,7 @@ services:
       TRAINER_SECRETS_KEYS: ${TRAINER_SECRETS_KEYS:?задайте TRAINER_SECRETS_KEYS}
       TRAINER_TEACHER_LOGIN: ${TRAINER_TEACHER_LOGIN:?}
       TRAINER_TEACHER_PASSWORD: ${TRAINER_TEACHER_PASSWORD:?}
-      TRAINER_PUBLIC_ORIGIN: ${TRAINER_PUBLIC_ORIGIN:?например https://trainer.example.ru}
+      TRAINER_PUBLIC_ORIGIN: https://${TRAINER_DOMAIN}
       TRAINER_SESSION_COOKIE_SECURE: "true"
       TRAINER_SANDBOX_BACKEND: docker
       TRAINER_SANDBOX_MEM: ${TRAINER_SANDBOX_MEM:-384m}
@@ -54,6 +68,8 @@ services:
 
 volumes:
   trainer-pg:
+  caddy-data:
+  caddy-config:
 
 networks:
   trainer: {}

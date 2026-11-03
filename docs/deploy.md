@@ -1,38 +1,27 @@
 # Выкладка тренажёра на VPS
 
-Сервер: `89.125.90.67`, вход `root` ключом `~/.ssh/edu_trainer_ed25519`. На сервере уже работают liberty и numbermania;
-их Caddy (`numbermania-caddy-1`) держит порты 80/443 — тренажёр встаёт за него на свой поддомен.
+Сервер: `5.42.199.85` (Ubuntu 22.04, Docker), вход `root` ключом `~/.ssh/edu_trainer_ed25519`, SSH на портах 22 и
+**8443** (из сети разработчика исходящий 22 закрыт — `ssh -p 8443 ...`). Сервер только под тренажёр: его Caddy держит
+80/443 и сам получает сертификат Let's Encrypt для `edu.qfenek.com`.
 
 ## 0. Перед выкладкой
 
-- SSH доступен: `ssh -i ~/.ssh/edu_trainer_ed25519 root@89.125.90.67 'nproc; free -h; df -h /'`
-  (≥ 2 CPU, ≥ 4 ГБ RAM, ≥ 5 ГБ свободно на диске — иначе стоп).
-- Поддомен `edu.qfenek.com` — A-запись на `89.125.90.67`, без AAAA (иначе Let's Encrypt идёт по IPv6 и не выпускает
-  сертификат).
+- `ssh -p 8443 -i ~/.ssh/edu_trainer_ed25519 root@5.42.199.85 'nproc; free -h; swapon --show; df -h /'` —
+  ≥ 5 ГБ свободно для первой сборки (на 2 ГБ RAM нужен swap 2 ГБ — сборка панели).
+- `edu.qfenek.com` — A-запись на `5.42.199.85`, без AAAA (иначе Let's Encrypt идёт по IPv6 и не выпускает сертификат).
 
-## 1. payway — только с подтверждения владельца
-
-1. `sh infra/deploy/payway-inventory.sh` — только чтение; список показать владельцу.
-2. После «да»: дамп базы `docker exec payway-postgres pg_dumpall -U <user> > /root/payway-$(date +%F).sql`,
-   скачать на машину разработчика (`scp`), на сервере удалить файл дампа.
-3. Удалить контейнеры/тома/сети payway из списка, убрать блоки payway из Caddyfile, `caddy reload`.
-4. Проверить, что liberty и numbermania отвечают.
-
-## 2. Тренажёр
+## 1. Первая выкладка
 
 ```sh
 git clone https://github.com/qtimespace/edu_trainer_llmbot.git /opt/trainer && cd /opt/trainer
 cp infra/docker/.env.example infra/docker/.env   # заполнить
-sh infra/deploy/deploy.sh                        # экран и сеть песочниц, образ, стек, Caddy → trainer-edge
+sh infra/deploy/deploy.sh   # экран и сеть песочниц, места на диске, образ песочницы, стек с Caddy, таймер автовыкладки
 ```
 
-Вставить `infra/docker/Caddyfile.snippet` в Caddyfile numbermania, `docker exec
-numbermania-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
+`/api/*` и `/ws/*` идут из Caddy прямо в API (`infra/docker/Caddyfile`) — WebSocket терминала Next не проксирует, а API
+по `X-Forwarded-For` видит настоящий IP ученика (ограничение попыток входа по IP не закрывает вход всем сразу).
 
-Важно: `/api/*` и `/ws/*` идут из Caddy прямо в API — WebSocket терминала Next не проксирует, а API по
-`X-Forwarded-For` видит настоящий IP ученика (ограничение попыток входа по IP не закрывает вход всем сразу).
-
-### Автовыкладка
+## 2. Автовыкладка
 
 `deploy.sh` ставит `trainer-autodeploy.timer`: раз в минуту сервер делает `git fetch` ветки `main` и, если там новый
 коммит и CI GitHub по нему зелёный (`.github/workflows/ci.yml`), — `git reset --hard` на него и `deploy.sh`.

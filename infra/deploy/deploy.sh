@@ -1,6 +1,6 @@
 #!/bin/sh
 # Выкладка на VPS (запускать на сервере из каталога репозитория): межсетевой экран, сеть и образ песочниц, стек.
-# Перед первым запуском: infra/docker/.env (см. .env.example) и вставка Caddyfile.snippet в Caddyfile.
+# Перед первым запуском: infra/docker/.env (см. .env.example). Порты 80/443 занимает Caddy тренажёра.
 set -eu
 cd "$(dirname "$0")/../.."
 FREE_GB=$(df -BG --output=avail / | tail -1 | tr -dc 0-9)
@@ -45,9 +45,7 @@ done
 # 4) образ песочницы и стек
 docker build -t trainer-sandbox:1 sandbox/image
 docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d --build
-# 5) Caddy numbermania — в сеть тренажёра (только он и тренажёр)
-docker network connect trainer-edge numbermania-caddy-1 2>/dev/null || true
-# 6) автовыкладка: раз в минуту новый коммит main с зелёным CI (infra/deploy/autodeploy.sh)
+# 5) автовыкладка: раз в минуту новый коммит main с зелёным CI (infra/deploy/autodeploy.sh)
 cat > /etc/systemd/system/trainer-autodeploy.service <<UNIT
 [Unit]
 Description=Trainer autodeploy from GitHub main
