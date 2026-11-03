@@ -111,6 +111,13 @@ export function wallSide(ctx: Ctx, sx: number, sy: number, y: number) {
     onRightFace(ctx, sx, sy, 1, 0.58, 0.76, 18, 32, "#d6ecfb");
   }
 }
+// низкая перегородка между кабинетами этажа: axis "x" — по левому краю клетки, "y" — по верхнему; сверху деревянный кант
+export const PARTITION_H = 14;
+export function partition(ctx: Ctx, sx: number, sy: number, axis: "x" | "y") {
+  const r = axis === "x" ? { x0: 0, x1: 0.14, y0: 0, y1: 1 } : { x0: 0, x1: 1, y0: 0, y1: 0.14 };
+  box(ctx, sx, sy, r, PARTITION_H - 2, WALL);
+  box(ctx, sx, sy, r, 2, { top: "#b98a5e", left: "#8f6140", right: "#7a5236" }, PARTITION_H - 2);
+}
 export function whiteboard(ctx: Ctx, sx: number, sy: number) {
   onLeftFace(ctx, sx, sy, 0.7, 0.08, 0.92, 12, 34, "#f8fafc");
   onLeftFace(ctx, sx, sy, 0.7, 0.2, 0.5, 26, 27, "#dc2626");
