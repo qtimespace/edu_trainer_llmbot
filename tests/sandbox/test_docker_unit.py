@@ -64,6 +64,13 @@ def test_sandbox_has_capped_tmp_and_needs_prepared_home_volume():
     _backend(volumes=(), quota=False).ensure("box3", {}, "x")  # разработка без квоты — можно
 
 
+def test_sandbox_init_reaps_zombies():
+    """PID 1 — init Docker: убитые при закрытии вкладки фоновые процессы не копятся зомби в лимите процессов."""
+    b = _backend()
+    b.ensure("box", {}, "trainer-home-seat1")
+    assert b._client.containers.runs[0]["init"] is True
+
+
 def test_check_output_goes_through_file_so_detached_process_cannot_hold_exec():
     b = _backend()
     b.ensure("box", {}, "trainer-home-seat1")

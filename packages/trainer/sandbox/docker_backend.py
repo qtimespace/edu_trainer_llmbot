@@ -140,7 +140,8 @@ class DockerBackend:
             self._ensure_network()
             tmp = f"size={s.sandbox_tmp_size},mode=1777"
             self._client.containers.run(
-                s.sandbox_image, name=name, detach=True, environment=env, hostname="lab",
+                # init: PID 1 подбирает осиротевшие процессы — убитые фоновые задачи не копятся зомби в pids_limit
+                s.sandbox_image, name=name, detach=True, init=True, environment=env, hostname="lab",
                 volumes={volume: {"bind": "/home", "mode": "rw"}}, tmpfs={"/tmp": tmp, "/var/tmp": tmp},
                 shm_size=s.sandbox_tmp_size, network=s.sandbox_network,
                 extra_hosts={"lab": "127.0.0.1"}, mem_limit=s.sandbox_mem, memswap_limit=s.sandbox_mem,

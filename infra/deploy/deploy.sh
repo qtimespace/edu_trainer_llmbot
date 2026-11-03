@@ -31,16 +31,22 @@ docker network inspect trainer-sandbox >/dev/null 2>&1 || docker network create 
     -o com.docker.network.bridge.name=trbr-sandbox -o com.docker.network.bridge.enable_icc=false trainer-sandbox
 # 3) место ученика на диске: по ext4-образу на место группы (1–5), размер — HOME_SIZE; запись сверх него
 #    не проходит, и один ученик не заполнит диск сервера (образы разрежённые — место занимается по мере записи)
+#    Docker сам loop-устройства не подключает (`o=loop` → «loop: invalid argument»): образ монтирует хост (fstab),
+#    том Docker — bind на точку монтирования
 HOME_SIZE=${HOME_SIZE:-500M}
 mkdir -p /srv/trainer/homes
 for seat in 1 2 3 4 5; do
-    img=/srv/trainer/homes/seat$seat.img
+    img=/srv/trainer/homes/seat$seat.img mnt=/srv/trainer/homes/seat$seat vol=trainer-home-seat$seat
     if [ ! -f "$img" ]; then
         truncate -s "$HOME_SIZE" "$img"
         mkfs.ext4 -q -F "$img"
     fi
-    docker volume inspect "trainer-home-seat$seat" >/dev/null 2>&1 || docker volume create --driver local \
-        --opt type=ext4 --opt device="$img" --opt o=loop "trainer-home-seat$seat" >/dev/null
+    mkdir -p "$mnt"
+    grep -q " $mnt " /etc/fstab || echo "$img $mnt ext4 loop,nodev,nosuid 0 0" >> /etc/fstab
+    mountpoint -q "$mnt" || mount "$mnt"
+    [ "$(docker volume inspect "$vol" -f '{{.Options.type}}' 2>/dev/null)" = ext4 ] && docker volume rm "$vol" >/dev/null
+    docker volume inspect "$vol" >/dev/null 2>&1 || docker volume create --driver local \
+        --opt type=none --opt device="$mnt" --opt o=bind "$vol" >/dev/null
 done
 # 4) образ песочницы и стек
 docker build -t trainer-sandbox:1 sandbox/image

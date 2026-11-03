@@ -27,9 +27,16 @@ def test_ssh_into_lab_with_lesson_password(box):
     assert r.exit_code == 0 and "student" in r.output
 
 
-def test_pids_limit_holds(box):
+def test_fork_bomb_contained_and_reset_recovers(box):
+    """Форк-бомба упирается в pids_limit своей песочницы; «Пересоздать мой сервер» (remove + ensure) её снимает."""
     backend, name = box
     backend.exec(name, ["bash", "-c", "timeout 5 bash -c ':(){ :|:& };:' || true"], user="student", timeout_s=15)
+    container = backend._client.containers.get(name)
+    assert int(container.stats(stream=False)["pids_stats"].get("current", 0)) <= backend._settings.sandbox_pids
+    volume = next(m["Name"] for m in container.attrs["Mounts"] if m["Destination"] == "/home")
+    backend.remove(name, volume, wipe=False)
+    backend.ensure(name, {"LESSON_PASSWORD": "kot-les-dom"}, volume)
+    time.sleep(1)
     assert backend.exec(name, ["echo", "ok"], user="student", timeout_s=10).output.strip() == "ok"
 
 
@@ -49,7 +56,10 @@ def test_no_icc():
     try:
         backend.ensure(a, {"LESSON_PASSWORD": "x-y-z"}, a + "-v")
         backend.ensure(b, {"LESSON_PASSWORD": "x-y-z"}, b + "-v")
-        ip_b = backend.exec(b, ["hostname", "-i"], user="student", timeout_s=10).output.split()[0]
+        # не `hostname -i`: имя хоста lab указывает на 127.0.0.1 — тест стучался бы в свой же sshd
+        ip_b = backend.exec(b, ["sh", "-c", "ip -4 -o addr show eth0 | awk '{print $4}' | cut -d/ -f1"],
+                            user="student", timeout_s=10).output.strip()
+        assert ip_b.startswith("172.31.250.")
         r = backend.exec(a, ["bash", "-c", f"timeout 3 bash -c '</dev/tcp/{ip_b}/22'"], user="student", timeout_s=10)
         assert r.exit_code != 0
     finally:
@@ -74,12 +84,14 @@ def test_no_host_access(box):
 def test_disk_cap_and_tty_session_cleanup():
     """Том места с квотой (как в deploy.sh): запись сверх размера не проходит; закрытый терминал не оставляет процессов."""
     import subprocess
-    img = f"/tmp/trainer-test-{uuid.uuid4().hex[:6]}.img"
-    vol = "trainer-home-test-" + uuid.uuid4().hex[:6]
+    tag = uuid.uuid4().hex[:6]
+    img, mnt, vol = f"/tmp/trainer-test-{tag}.img", f"/tmp/trainer-test-{tag}", f"trainer-home-test-{tag}"
     subprocess.run(["truncate", "-s", "64M", img], check=True)
     subprocess.run(["mkfs.ext4", "-q", "-F", img], check=True)
-    subprocess.run(["docker", "volume", "create", "--driver", "local", "--opt", "type=ext4", "--opt", f"device={img}",
-                    "--opt", "o=loop", vol], check=True, capture_output=True)
+    subprocess.run(["mkdir", "-p", mnt], check=True)
+    subprocess.run(["mount", "-o", "loop,nodev,nosuid", img, mnt], check=True)
+    subprocess.run(["docker", "volume", "create", "--driver", "local", "--opt", "type=none", "--opt", f"device={mnt}",
+                    "--opt", "o=bind", vol], check=True, capture_output=True)
     backend = DockerBackend(Settings(_env_file=None))
     name = f"trainer-sbx-test-{uuid.uuid4().hex[:6]}"
     try:
@@ -102,4 +114,16 @@ def test_disk_cap_and_tty_session_cleanup():
     finally:
         backend.remove(name, vol, wipe=False)
         subprocess.run(["docker", "volume", "rm", "-f", vol], capture_output=True)
-        subprocess.run(["rm", "-f", img])
+        subprocess.run(["umount", mnt])
+        subprocess.run(["rm", "-rf", img, mnt])
+
+
+def test_seat_volumes_mountable():
+    """Тома мест из deploy.sh монтируются в контейнер (Docker сам loop не подключает — раньше падал вход ученика)."""
+    import docker
+    client = docker.from_env()
+    seats = [v for v in client.volumes.list() if v.name.startswith("trainer-home-seat")]
+    assert seats, "нет томов мест — запустите infra/deploy/deploy.sh"
+    for v in seats:
+        client.containers.run("trainer-sandbox:1", entrypoint=["df", "/home"], volumes={v.name: {"bind": "/home"}},
+                              network_mode="none", remove=True)
