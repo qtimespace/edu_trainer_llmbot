@@ -1,34 +1,32 @@
 "use client";
-import Link from "next/link";
+import { useState } from "react";
 import { RoomsOffice } from "@/components/office/RoomsOffice";
-import { Badge, Card, Empty, ErrorBox, Loading, PageTitle } from "@/components/ui";
+import { TaskBoard } from "@/components/TaskBoard";
+import { Card, Empty, ErrorBox, Loading, PageTitle } from "@/components/ui";
+import { api } from "@/lib/api";
+import type { Board } from "@/lib/board";
 import { useApi } from "@/lib/hooks";
 import type { Office } from "@/lib/rooms";
-import { statusLabel, type StudentTask } from "@/lib/tasks";
-
-const TONE = { todo: "gray", in_progress: "blue", waiting_student: "yellow", done: "green", draft: "gray" } as const;
 
 export default function RoomPage() {
   const office = useApi<Office>("/office", { pollMs: 2000 });
-  const tasks = useApi<StudentTask[]>("/me/tasks", { pollMs: 5000 });
-  if (!office.data || !tasks.data) return <><ErrorBox error={office.error ?? tasks.error} /><Loading /></>;
+  const board = useApi<Board>("/me/board", { pollMs: 3000 });
+  const [error, setError] = useState<Error | null>(null);
+  if (!board.data) return <><ErrorBox error={board.error} /><Loading /></>;
   return (
     <>
       <PageTitle>Моя комната</PageTitle>
-      <div className="flex flex-col gap-4 lg:flex-row">
-        <Card title="Мои задания" className="lg:w-80">
-          {tasks.data.length === 0 && <Empty>Заданий пока нет — подожди преподавателя</Empty>}
-          <ol className="space-y-2">
-            {tasks.data.map((t) => (
-              <li key={t.id}><Link href={`/room/tasks/${t.id}`} className="block rounded border border-zinc-200 p-2
-                hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800">
-                <div className="font-medium">{t.title}</div>
-                <Badge tone={TONE[t.status]}>{statusLabel(t.status)}</Badge></Link></li>
-            ))}
-          </ol>
-        </Card>
-        <div className="min-w-0 flex-1"><RoomsOffice office={office.data} /></div>
-      </div>
+      <ErrorBox error={error} />
+      <Card title="Мои задания" className="mb-4">
+        {board.data.tasks.length === 0 ? <Empty>Заданий пока нет — подожди преподавателя</Empty> : <>
+          <p className="mb-2 text-xs text-zinc-500">Перетащи карточку на следующий этап — задание подхватит агент этого
+            этапа. В «Готово» карточка попадёт, только когда пройдут все проверки.</p>
+          <TaskBoard board={board.data} hrefFor={(t) => `/room/tasks/${t.id}`} onMove={(t, stage) =>
+            api(`/me/tasks/${t.id}/move`, { method: "POST", body: { stage } }).then(() => setError(null), setError)
+              .finally(board.reload)} />
+        </>}
+      </Card>
+      {office.data && <RoomsOffice office={office.data} />}
     </>
   );
 }

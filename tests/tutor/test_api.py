@@ -81,6 +81,7 @@ def test_all_checks_pass_closes_task(world):
     install_fake_llm(app, [reply({"reply": "Как дела?", "done": False}), reply({"reply": "Готово!", "done": False})])
     passing["test -f ~/Temp/test.py"] = False
     kid.post(f"/me/tasks/{ids[0]}/start")
+    TaskStore(engine).set_stage(ids[0], "review")  # закрывает ход только этап, ведущий в «Готово»
     passing["test -f ~/Temp/test.py"] = True
     assert kid.post(f"/me/tasks/{ids[0]}/messages", json={"text": "сделал"}).status_code == 202
     msgs = kid.get(f"/me/tasks/{ids[0]}/messages").json()
@@ -206,6 +207,10 @@ def test_cto_sees_the_student_budget_and_agent_work(world):
     lesson_id = TaskStore(engine).get(ids[0]).lesson_id
     t = TaskStore(engine).create_draft(lesson_id, kids[0], "cto", "Бюджет команды", "Оцени расходы агентов", [])
     TaskStore(engine).approve(t.id)
+    from trainer.curriculum.flow import Flow, FlowStore, Stage
+    FlowStore(engine).save(Flow(stages=[Stage(key="todo", name="Очередь"), Stage(key="work", name="Работа"),
+                                        Stage(key="done", name="Готово")],
+                                transitions=[("todo", "work"), ("work", "done")]))  # этап без своего агента
     fake = install_fake_llm(app, [reply({"reply": "Сколько потратил Девопс?", "done": False})])
     assert kid.post(f"/me/tasks/{t.id}/start").status_code == 202
     user = fake.calls[0].user

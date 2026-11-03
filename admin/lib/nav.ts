@@ -6,6 +6,7 @@ const TEACHER: NavItem[] = [
   { href: "/office", label: "Офис" },
   { href: "/group", label: "Группа" },
   { href: "/lessons", label: "Уроки" },
+  { href: "/settings/flow", label: "Флоу" },
   { href: "/settings/llm", label: "Модели и ключи" },
   { href: "/settings/agents", label: "Агенты" },
 ];

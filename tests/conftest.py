@@ -10,7 +10,7 @@ from trainer.db import make_engine
 os.environ.setdefault("TRAINER_SECRETS_KEYS", "k1:" + "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUE=")
 
 ROOT = Path(__file__).resolve().parents[1]
-TABLES = ("task_messages", "agent_jobs", "tasks", "lessons", "agents", "llm_cooldowns", "ledger", "llm_models",
+TABLES = ("flow", "task_messages", "agent_jobs", "tasks", "lessons", "agents", "llm_cooldowns", "ledger", "llm_models",
           "llm_keys", "presence", "group_students", "groups", "login_attempts", "sessions", "accounts")
 
 

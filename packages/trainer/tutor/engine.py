@@ -1,6 +1,7 @@
 """Ход агента-тьютора: проверки в песочнице + история команд + переписка → ответ модели (JSON) → статус.
 
-Задание закрывается (done) тогда и только тогда, когда прошли ВСЕ проверочные команды; `done` модели — подсказка.
+Задание закрывается (done) тогда и только тогда, когда прошли ВСЕ проверочные команды и этап флоу ведёт в «Готово»;
+`done` модели — подсказка. Ведёт задание агент текущего этапа (curriculum/flow.py).
 """
 import logging
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from trainer.agents.store import AgentStore
 from trainer.classroom.groups import GroupStore
+from trainer.curriculum.flow import DONE, Flow, FlowStore, agent_for, stage_of
 from trainer.curriculum.methodist import extract_json
 from trainer.curriculum.tasks import TaskStore
 from trainer.domain import Budget
@@ -80,14 +82,21 @@ def cto_brief(engine: Engine, student_id: str, budget_usd: float) -> str:
             f"осталось ${max(0.0, budget_usd - spent):.2f}.\nРабота агентов:\n" + ("\n".join(lines) or "- пока не работали"))
 
 
-def _prompt(task, results: list[CheckResult], history: list[str], messages, brief: str = "") -> str:
+def _stage_line(task, flow: Flow) -> str:
+    stage = stage_of(task, flow)
+    nxt = [flow.stage(b).name for a, b in flow.transitions if a == stage]
+    return (f"Этап задания на доске: «{flow.stage(stage).name}»"
+            + (f"; дальше ученик сам переносит карточку: {', '.join(nxt)}" if nxt else "") + ".\n\n")
+
+
+def _prompt(task, results: list[CheckResult], history: list[str], messages, brief: str = "", stage: str = "") -> str:
     checks = "\n".join(f"{'✓' if r.passed else '✗'} {r.about}" + (f" — вывод: {r.output.strip()[:200]}"
                                                                    if r.output.strip() and not r.passed else "")
                        for r in results)
     talk = "\n".join(f"{'Ученик' if m.author == 'student' else 'Ты' if m.author == 'agent' else 'Система'}: "
                      f"{_cut(m.text, MESSAGE_CHARS)}" for m in messages[-20:]) or "(пока не было — начни разговор)"
     history = _recent(history)
-    return (f"Задание ученика: {task.title}\n{task.statement}\n\n"
+    return (f"Задание ученика: {task.title}\n{task.statement}\n\n" + stage
             + (f"Сводка по бюджету и агентам:\n{brief}\n\n" if brief else "") +
             f"Результаты проверок в его песочнице (✓ — выполнено, ✗ — нет):\n{checks or '(проверок нет)'}\n\n"
             f"Последние команды ученика (lobby$ — вход, student$ — сервер lab):\n"
@@ -103,7 +112,9 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
     try:
         task = tasks.get(task_id)
         student = GroupStore(engine).student(student_id)
-        agent = AgentStore(engine).get(task.agent_key)
+        flow = FlowStore(engine).get()
+        tutors = {a.key for a in AgentStore(engine).list(kind="tutor", enabled_only=True)}
+        agent = AgentStore(engine).get(agent_for(task, flow, tutors))
         left = remaining_usd(engine, student_id, student.budget_usd)
         if left < MIN_TURN_USD:
             messages.add(task_id, "system", NO_BUDGET)
@@ -119,7 +130,8 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
         try:
             resp = build_gateway(engine, deps.settings, student_id=student_id, providers=deps.providers).execute(
                 GatewayRequest(task_id=task_id, agent=agent.key, policy=POLICY, capabilities=[],
-                               system=agent.system_prompt, user=_prompt(task, results, history, messages.for_task(task_id), brief),
+                               system=agent.system_prompt, user=_prompt(task, results, history, messages.for_task(task_id), brief,
+                                                                       _stage_line(task, flow)),
                                budget=Budget(max_input_tokens=32000, max_output_tokens=1500,
                                              max_usd=min(agent.max_usd_per_call, left)),
                                route=agent.route or None))
@@ -130,11 +142,14 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
             messages.add(task_id, "system", _REASON_TEXT.get(reason, SOFT_ERROR), meta={"reason": reason})
             tasks.set_status(task_id, "waiting_student")
             return
-        passed = bool(results) and all(r.passed for r in results)
+        # закрывает ход только этап, из которого есть переход в «Готово»; раньше — ученик переносит карточку сам
+        passed = bool(results) and all(r.passed for r in results) and (stage_of(task, flow), DONE) in flow.moves()
         messages.add(task_id, "agent", answer.reply, agent_key=agent.key,
                      meta={"checks": [r.__dict__ for r in results], "model": resp.model_key,
                            "cost_usd": resp.cost_usd, "model_done": answer.done})
         tasks.set_status(task_id, "done" if passed else "waiting_student")
+        if passed:
+            tasks.set_stage(task_id, DONE)
         ok = True
     except Exception:
         log.exception("ход агента по заданию %s упал", task_id)

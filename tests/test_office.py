@@ -62,6 +62,7 @@ def test_typing_state_while_job_running(world):
     engine, teacher, kids, task = world
     PresenceStore(engine).ping(kids[0])
     TaskStore(engine).set_status(task.id, "in_progress")
+    TaskStore(engine).set_stage(task.id, "dev")  # на «Разработке» задание ведёт его агент
     JobStore(engine).start("devops", task_id=task.id, student_id=kids[0])
     devops = next(a for a in _room(teacher.get("/office").json(), 1)["agents"] if a["key"] == "devops")
     assert devops["state"] == "typing" and devops["task"]["title"] == "Папка Temp"
@@ -72,6 +73,7 @@ def test_waiting_state_shows_last_reply(world):
     PresenceStore(engine).ping(kids[0])
     TaskStore(engine).set_status(task.id, "in_progress")
     TaskStore(engine).set_status(task.id, "waiting_student")
+    TaskStore(engine).set_stage(task.id, "dev")
     MessageStore(engine).add(task.id, "agent", "Как подключишься?", agent_key="devops")
     devops = next(a for a in _room(teacher.get("/office").json(), 1)["agents"] if a["key"] == "devops")
     assert devops["state"] == "waiting" and devops["last_reply"] == "Как подключишься?"

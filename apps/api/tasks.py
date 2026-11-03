@@ -6,9 +6,11 @@ from sqlalchemy import Engine
 from apps.api.auth import student_dep
 from apps.api.deps import engine_dep, providers_dep, runner_dep, settings_dep
 from apps.api.sandbox import manager_dep
+from trainer.curriculum.flow import FlowStore, agent_for
 from trainer.curriculum.tasks import TaskStore
 from trainer.sandbox.manager import SandboxManager
 from trainer.settings import Settings
+from trainer.tutor.board import MoveError, move_task, tutor_keys
 from trainer.tutor.engine import tutor_turn
 from trainer.tutor.jobs import JobStore, LlmDeps
 from trainer.tutor.messages import MessageStore
@@ -45,8 +47,9 @@ class MessageBody(BaseModel):
 
 
 def _lock(engine: Engine, task, student_id: str) -> str:
-    """Ход агента: один на задание и один на ученика (параллельные ходы не превышают лимит расходов)."""
-    job = JobStore(engine).start(task.agent_key, task_id=task.id, student_id=student_id)
+    """Ход агента этапа: один на задание и один на ученика (параллельные ходы не превышают лимит расходов)."""
+    job = JobStore(engine).start(agent_for(task, FlowStore(engine).get(), tutor_keys(engine)), task_id=task.id,
+                                 student_id=student_id)
     if job is None:
         raise HTTPException(status_code=409, detail="агент ещё отвечает — подожди")
     return job
@@ -56,16 +59,15 @@ def _lock(engine: Engine, task, student_id: str) -> str:
 def start(task_id: str, who=Depends(student_dep), engine: Engine = Depends(engine_dep),
           settings: Settings = Depends(settings_dep), providers=Depends(providers_dep), run=Depends(runner_dep),
           manager: SandboxManager = Depends(manager_dep)) -> dict:
+    """«Начать» — то же, что перенести карточку из «К выполнению» на первый рабочий этап флоу."""
     task = own_task_or_404(engine, task_id, who.id)
     if task.status != "todo":
         raise HTTPException(status_code=409, detail="задание уже начато")
-    job = _lock(engine, task, who.id)
     try:
-        TaskStore(engine).set_status(task_id, "in_progress")
-    except ValueError as e:  # параллельный «старт» успел раньше
-        JobStore(engine).finish(job, ok=False)
-        raise HTTPException(status_code=409, detail="задание уже начато") from e
-    run(tutor_turn, LlmDeps(engine, settings, providers), manager, task.id, who.id, job)
+        move_task(LlmDeps(engine, settings, providers), manager, run, task, FlowStore(engine).get().first_work_stage(),
+                  by_teacher=False)
+    except MoveError as e:
+        raise HTTPException(status_code=e.status, detail=e.detail) from e
     return {"status": "running"}
 
 
@@ -78,13 +80,13 @@ def send(task_id: str, body: MessageBody, who=Depends(student_dep), engine: Engi
         raise HTTPException(status_code=409, detail="задание не в работе")
     if JobStore(engine).is_running(task_id):
         raise HTTPException(status_code=409, detail="агент ещё отвечает — подожди")
-    MessageStore(engine).add(task_id, "student", body.text.strip())
+    job = _lock(engine, task, who.id)
     if task.status == "waiting_student":
-        job = _lock(engine, task, who.id)
-    try:
-        TaskStore(engine).set_status(task_id, "in_progress")
-    except ValueError as e:  # параллельный «старт» успел раньше
-        JobStore(engine).finish(job, ok=False)
-        raise HTTPException(status_code=409, detail="задание уже начато") from e
+        try:
+            TaskStore(engine).set_status(task_id, "in_progress")
+        except ValueError as e:  # параллельный ход успел раньше
+            JobStore(engine).finish(job, ok=False)
+            raise HTTPException(status_code=409, detail="агент ещё отвечает — подожди") from e
+    MessageStore(engine).add(task_id, "student", body.text.strip())
     run(tutor_turn, LlmDeps(engine, settings, providers), manager, task.id, who.id, job)
     return {"status": "running"}

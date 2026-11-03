@@ -8,7 +8,7 @@ describe("menuFor", () => {
     expect(labels).not.toContain("Группа");
   });
   it("teacher sees office, group, lessons and settings", () => {
-    expect(menuFor("teacher").map((i) => i.href)).toEqual(["/office", "/group", "/lessons", "/settings/llm",
+    expect(menuFor("teacher").map((i) => i.href)).toEqual(["/office", "/group", "/lessons", "/settings/flow", "/settings/llm",
       "/settings/agents"]);
   });
   it("home page depends on role", () => {

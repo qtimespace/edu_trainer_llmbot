@@ -4,6 +4,7 @@ from sqlalchemy import Engine, text
 from trainer.agents.store import AgentStore
 from trainer.classroom.groups import GroupStore
 from trainer.classroom.presence import PresenceStore
+from trainer.curriculum.flow import FlowStore, agent_for
 from trainer.curriculum.tasks import TaskStore
 from trainer.tutor.jobs import JobStore
 
@@ -17,8 +18,8 @@ def _last_replies(engine: Engine, student_id: str) -> dict[str, str]:
         return {r.agent_key: r.text for r in rows}
 
 
-def _agent_state(agent_key: str, tasks: list, running_tasks: set[str]) -> tuple[str, object]:
-    mine = [t for t in tasks if t.agent_key == agent_key]
+def _agent_state(agent_key: str, tasks: list, running_tasks: set[str], lead: dict[str, str]) -> tuple[str, object]:
+    mine = [t for t in tasks if lead[t.id] == agent_key]  # задание ведёт агент его этапа
     for t in mine:
         if t.id in running_tasks:
             return "typing", t
@@ -42,8 +43,10 @@ def room_for(engine: Engine, student, online: bool, tutors) -> dict:
     tasks = TaskStore(engine).for_student(student.account_id)
     running = {j.task_id for j in JobStore(engine).running(student.account_id) if j.task_id}
     replies = _last_replies(engine, student.account_id)
+    flow, keys = FlowStore(engine).get(), {a.key for a in tutors}
+    lead = {t.id: agent_for(t, flow, keys) for t in tasks}
     for agent in tutors:
-        state, task = _agent_state(agent.key, tasks, running)
+        state, task = _agent_state(agent.key, tasks, running, lead)
         room["agents"].append({"key": agent.key, "name": agent.name, "state": state,
                                "task": {"id": task.id, "title": task.title, "status": task.status} if task else None,
                                "last_reply": replies.get(agent.key)})

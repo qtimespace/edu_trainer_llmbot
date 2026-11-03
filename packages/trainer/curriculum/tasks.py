@@ -8,7 +8,7 @@ from sqlalchemy import Engine, text
 from trainer.accounts.store import is_uuid
 
 STATUSES = ("draft", "todo", "in_progress", "waiting_student", "done")
-TRANSITIONS = {("draft", "todo"), ("todo", "in_progress"), ("in_progress", "waiting_student"),
+TRANSITIONS = {("draft", "todo"), ("todo", "in_progress"), ("todo", "done"), ("in_progress", "waiting_student"),
                ("waiting_student", "in_progress"), ("in_progress", "done"), ("waiting_student", "done")}
 
 
@@ -28,6 +28,7 @@ class Task:
     status: str
     position: int
     checks: list[Check] = field(default_factory=list)
+    stage: str | None = None  # этап доски (curriculum/flow.py); пусто — по статусу
 
     def for_student(self) -> dict:
         """Вид для ученика: проверочные команды не показываем."""
@@ -41,7 +42,7 @@ class Task:
 def _task(r) -> Task:
     return Task(id=str(r.id), lesson_id=str(r.lesson_id), student_id=str(r.student_id), agent_key=r.agent_key,
                 title=r.title, statement=r.statement, status=r.status, position=r.position,
-                checks=[Check(**c) for c in r.checks])
+                checks=[Check(**c) for c in r.checks], stage=r.stage)
 
 
 def _checks_json(checks: list[Check]) -> str:
@@ -110,6 +111,11 @@ class TaskStore:
         if r is None:
             raise ValueError("статус задания изменился одновременно — повторите")
         return _task(r)
+
+    def set_stage(self, task_id: str, stage: str) -> None:
+        with self._engine.begin() as c:
+            c.execute(text("UPDATE tasks SET stage = :st, updated_at = now() WHERE id = CAST(:i AS uuid)"),
+                      {"i": task_id, "st": stage})
 
     def approve(self, task_id: str) -> Task:
         return self.set_status(task_id, "todo")

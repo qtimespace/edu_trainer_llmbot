@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { Badge, Button, Card, ErrorBox, Field, FormRow, Input, Loading, Modal, PageTitle, Select, Table, Textarea }
   from "@/components/ui";
@@ -49,6 +50,7 @@ function StudentRow({ s, onChange }: { s: Student; onChange: () => void }) {
       <td><Badge tone={box?.status === "running" ? "green" : "gray"}>{box?.status === "running" ? "работает"
         : box?.status === "stopped" ? "остановлен" : "не создан"}</Badge></td>
       <td className="whitespace-nowrap">
+        <Link href={`/group/${s.account_id}`} className="mr-2 text-sm text-indigo-600 hover:underline">Доска</Link>
         <Button variant="ghost" onClick={() => setEdit(true)}>Изменить</Button>
         <Button variant="ghost" onClick={reset}>Пересоздать сервер</Button>
         <Button variant="ghost" onClick={() => api<{ password: string }>(`/group/students/${s.account_id}/password`,
