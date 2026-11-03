@@ -59,8 +59,9 @@ def _prepare_one(deps: LlmDeps, lesson: Lesson, student: Student) -> None:
             route=methodist.route or None))
         out = MethodistOutput.model_validate(extract_json(resp.text))
         keys = {t.key for t in tutors}
+        fallback = "devops" if "devops" in keys else tutors[0].key  # неизвестный агент — задание ведёт Девопс
         drafts = [{"title": t.title, "statement": t.statement, "checks": t.checks,
-                   "agent_key": t.agent_key if t.agent_key in keys else tutors[0].key} for t in out.tasks]
+                   "agent_key": t.agent_key if t.agent_key in keys else fallback} for t in out.tasks]
         TaskStore(deps.engine).replace_drafts(lesson.id, student.account_id, drafts)
         ok = True
     finally:

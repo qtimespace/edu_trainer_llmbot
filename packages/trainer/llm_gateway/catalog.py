@@ -33,6 +33,26 @@ class Offer:
     pricing: dict | None = None
 
 
+# Прямые провайдеры цену в списке моделей не отдают. Claude — по прайсу Anthropic (2026-10); остальное — вводит
+# преподаватель при добавлении модели.
+KNOWN_PRICES = {
+    "anthropic": {
+        "claude-fable-5-1": (10.0, 50.0), "claude-fable-5": (10.0, 50.0),
+        "claude-opus-5-5": (4.0, 20.0), "claude-opus-5": (5.0, 25.0), "claude-opus-4-8": (5.0, 25.0),
+        "claude-opus-4-7": (5.0, 25.0), "claude-opus-4-6": (5.0, 25.0),
+        "claude-sonnet-5-5": (2.0, 10.0), "claude-sonnet-5": (2.0, 10.0), "claude-sonnet-4-6": (3.0, 15.0),
+        "claude-haiku-5-5": (0.1, 0.5), "claude-haiku-4-5": (1.0, 5.0),
+    },
+}
+
+
+def _direct(provider: str, item: dict) -> Offer:
+    price = KNOWN_PRICES.get(provider, {}).get(item["id"])
+    window = item.get("max_input_tokens") or item.get("context_length") or item.get("context_window")
+    return Offer(item["id"], item.get("display_name") or item["id"], window,
+                 {"input": price[0], "output": price[1]} if price else None)
+
+
 def _hf(item: dict) -> Offer:
     live = [p for p in item.get("providers") or [] if p.get("status") == "live"]
     priced = [p["pricing"] for p in live if p.get("pricing")]
@@ -57,7 +77,7 @@ def parse_offers(provider: str, payload: dict) -> list[Offer]:
         return [_hf(i) for i in items if i.get("id")]
     if provider == "openrouter":
         return [_openrouter(i) for i in items if i.get("id")]
-    return [Offer(i["id"], i.get("display_name") or i["id"]) for i in items if i.get("id")]
+    return [_direct(provider, i) for i in items if i.get("id")]
 
 
 KEY_ENV = {"anthropic": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY", "kimi": "MOONSHOT_API_KEY",

@@ -3,7 +3,7 @@ from sqlalchemy import Engine, text
 
 from trainer.security.secrets import SecretBox, VaultNotConfigured
 
-PROVIDERS = ("openrouter", "hf")
+PROVIDERS = ("openrouter", "hf", "zai", "kimi", "anthropic")
 
 
 class LlmKeyStore:

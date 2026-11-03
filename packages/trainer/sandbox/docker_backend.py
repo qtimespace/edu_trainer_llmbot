@@ -130,11 +130,14 @@ class DockerBackend:
     def ensure(self, name: str, env: dict[str, str], volume: str) -> None:
         with _LOCK:
             box = self._get(name)
+            s = self._settings
+            if box is not None and box.image.id != self._client.images.get(s.sandbox_image).id:
+                box.remove(force=True)  # образ обновили (например, добавили node) — пересоздаём; /home на томе цел
+                box = None
             if box is not None:
                 if box.status != "running":
                     box.start()
                 return
-            s = self._settings
             if s.sandbox_disk_quota and not self._volume_exists(volume):
                 raise SandboxDiskError(f"нет тома {volume} с ограничением размера — запустите infra/deploy/deploy.sh")
             self._ensure_network()

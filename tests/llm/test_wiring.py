@@ -41,3 +41,21 @@ def test_remaining_budget(engine):
                   {"u": kid.id})
     assert remaining_usd(engine, kid.id, 1.0) == pytest.approx(0.25)
     assert remaining_usd(engine, kid.id, 0.5) == 0.0
+
+
+def test_providers_are_built_per_key_anthropic_with_its_own_client(engine):
+    from trainer.llm.keys import LlmKeyStore
+    from trainer.llm.wiring import build_providers, secret_box
+    from trainer.llm_gateway.catalog import load_registry
+    from trainer.llm_gateway.providers.anthropic_provider import AnthropicProvider
+    from trainer.llm_gateway.providers.openai_compat import OpenAICompatibleProvider
+    catalog = ModelCatalog(engine)
+    for provider, model in (("anthropic", "claude-haiku-5-5"), ("kimi", "kimi-k2.6"), ("zai", "glm-5.3")):
+        catalog.save(ModelSpec(key=f"{provider}/{model}", provider=provider, model=model, capabilities=["reasoning"],
+                               context_window=100000, pricing=Pricing(input=1.0, output=2.0)), author="test")
+    keys = LlmKeyStore(engine, secret_box())
+    for provider in ("anthropic", "kimi"):
+        keys.set(provider, f"sk-{provider}-key")
+    providers = build_providers(load_registry(Settings(_env_file=None).llm_registry_path, engine), keys)
+    assert isinstance(providers["anthropic"], AnthropicProvider)
+    assert isinstance(providers["kimi"], OpenAICompatibleProvider) and "zai" not in providers  # без ключа — нет

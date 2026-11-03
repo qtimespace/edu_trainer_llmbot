@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bubbleFor, isDark, roomGrid, roomLayout } from "./rooms";
+import { bubbleFor, isDark, ROOM_COLS, ROOM_ROWS, roomGrid, roomLayout } from "./rooms";
 
 describe("rooms", () => {
   it("grid of rooms for group size 2..5", () => {
@@ -8,12 +8,14 @@ describe("rooms", () => {
     expect(roomGrid(4)).toEqual({ cols: 2, rows: 2 });
     expect(roomGrid(5)).toEqual({ cols: 3, rows: 2 });
   });
-  it("one desk and seat per agent, at most 4", () => {
+  it("one desk and seat per agent: the whole team of 9 fits in two rows, at most 12", () => {
     expect(roomLayout(0).seats).toEqual([]);
-    const l = roomLayout(6);
-    expect(l.seats).toHaveLength(4);
-    expect(l.desks).toHaveLength(4);
+    const l = roomLayout(9);
+    expect(l.seats).toHaveLength(9);
     expect(l.seats.every((s, i) => s.x === l.desks[i].x && s.y === l.desks[i].y - 1)).toBe(true);
+    expect(new Set(l.seats.map((s) => `${s.x},${s.y}`)).size).toBe(9);  // никто не сидит друг на друге
+    expect(l.desks.every((d) => d.x >= 1 && d.x < ROOM_COLS && d.y >= 1 && d.y < ROOM_ROWS - 1)).toBe(true);
+    expect(roomLayout(20).seats).toHaveLength(12);
   });
   it("offline room is dark", () => {
     expect(isDark({ online: false })).toBe(true);

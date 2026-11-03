@@ -16,7 +16,7 @@ export default function LessonsPage() {
   if (!data) return <><ErrorBox error={error} /><Loading /></>;
   return (
     <>
-      <PageTitle>Уроки</PageTitle>
+      <PageTitle actions={<a href="#new"><Button variant="secondary">+ Новый урок</Button></a>}>Уроки</PageTitle>
       <Card className="mb-4">
         {data.length === 0 && <Empty>Уроков пока нет</Empty>}
         <ol className="space-y-1">
@@ -26,7 +26,7 @@ export default function LessonsPage() {
             {l.prep_status === "failed" && <Badge tone="red">ошибка подготовки</Badge>}</li>)}
         </ol>
       </Card>
-      <Card title="Новый урок">
+      <Card title="Новый урок" id="new">
         <ErrorBox error={err} />
         <Field label="Тема"><Input value={title} onChange={(e) => setTitle(e.target.value)}
           placeholder="Bash: подключение и файлы" /></Field>

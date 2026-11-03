@@ -30,14 +30,17 @@ def secret_box(settings: Settings | None = None) -> SecretBox | None:
 
 
 def build_providers(registry: ModelRegistry, keys: LlmKeyStore) -> dict[str, Provider]:
+    from trainer.llm_gateway.providers.anthropic_provider import AnthropicProvider
     from trainer.llm_gateway.providers.openai_compat import OpenAICompatibleProvider
     providers: dict[str, Provider] = {}
     for spec in registry.enabled:
         if spec.provider in providers:
             continue
         key = keys.get(spec.provider)
-        if key:  # без ключа провайдер не подключается: его модели просто не участвуют в маршруте
-            providers[spec.provider] = OpenAICompatibleProvider(spec.provider, base_url=spec.base_url, api_key=key)
+        if not key:  # без ключа провайдер не подключается: его модели просто не участвуют в маршруте
+            continue
+        providers[spec.provider] = (AnthropicProvider(api_key=key) if spec.provider == "anthropic" else
+                                    OpenAICompatibleProvider(spec.provider, base_url=spec.base_url, api_key=key))
     return providers
 
 

@@ -196,6 +196,26 @@ def test_stale_running_job_does_not_block_forever(world):
     assert kid.post(f"/me/tasks/{ids[0]}/messages", json={"text": "ау"}).status_code == 202
 
 
+def test_cto_sees_the_student_budget_and_agent_work(world):
+    from sqlalchemy import text
+    engine, kid, kids, ids, passing = world
+    with engine.begin() as c:
+        c.execute(text("""INSERT INTO ledger (request_id, provider, model, input_tokens, output_tokens, cost_usd, agent,
+                          task_id, user_id) VALUES ('r1', 'openrouter', 'x/m', 1, 1, 0.25, 'devops', :t, :u)"""),
+                  {"t": ids[0], "u": kids[0]})
+    lesson_id = TaskStore(engine).get(ids[0]).lesson_id
+    t = TaskStore(engine).create_draft(lesson_id, kids[0], "cto", "Бюджет команды", "Оцени расходы агентов", [])
+    TaskStore(engine).approve(t.id)
+    fake = install_fake_llm(app, [reply({"reply": "Сколько потратил Девопс?", "done": False})])
+    assert kid.post(f"/me/tasks/{t.id}/start").status_code == 202
+    user = fake.calls[0].user
+    budget = GroupStore(engine).student(kids[0]).budget_usd
+    assert f"$0.25 из ${budget:.2f}" in user and "Девопс (devops): 1 ход" in user
+    devops = install_fake_llm(app, [reply({"reply": "ok", "done": False})])
+    kid.post(f"/me/tasks/{ids[0]}/start")
+    assert "$0.25 из" not in devops.calls[0].user  # сводку бюджета видит только CTO
+
+
 def test_long_history_lines_are_capped(world):
     from trainer.tutor.engine import _prompt
     engine, kid, kids, ids, passing = world

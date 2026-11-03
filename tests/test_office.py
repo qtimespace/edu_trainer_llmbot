@@ -53,7 +53,9 @@ def test_online_room_has_tutors(world):
     PresenceStore(engine).ping(kids[0])
     room = _room(teacher.get("/office").json(), 1)
     assert room["lights"] is True
-    assert {a["key"]: a["state"] for a in room["agents"]} == {"devops": "idle", "pythonist": "idle"}
+    from trainer.agents.seed import TEAM
+    assert {a["key"]: a["state"] for a in room["agents"]} == {k: "idle" for k in ["devops", "pythonist",
+                                                                               *(key for key, _n, _r in TEAM)]}
 
 
 def test_typing_state_while_job_running(world):

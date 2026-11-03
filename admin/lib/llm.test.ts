@@ -11,4 +11,10 @@ describe("llm catalog", () => {
       .toEqual({ provider: "hf", model: "x/y", capabilities: ["reasoning"], context_window: 1000,
         pricing: { input: 1, output: 2 } });
   });
+  it("teacher's price and window fill what a direct provider does not report; Claude answers at low effort", () => {
+    expect(modelBody("anthropic", { model: "claude-x", name: "X", context_window: null, pricing: null },
+      { input: 3, output: 15, context_window: 200000 }))
+      .toEqual({ provider: "anthropic", model: "claude-x", capabilities: ["reasoning"], context_window: 200000,
+        pricing: { input: 3, output: 15 }, effort: "low" });
+  });
 });

@@ -21,14 +21,20 @@ class FakeContainers:
 
     def run(self, image, **kw):
         self.runs.append(kw)
-        self.boxes[kw["name"]] = Box()
+        self.boxes[kw["name"]] = Box(image_id=IMAGE_ID)
+
+
+IMAGE_ID = "sha256:new"
 
 
 class Box:
     status = "running"
 
-    def __init__(self):
-        self.execs = []
+    def __init__(self, image_id=IMAGE_ID):
+        self.execs, self.image, self.removed = [], SimpleNamespace(id=image_id), False
+
+    def remove(self, force=False):
+        self.removed = True
 
     def exec_run(self, cmd, **kw):
         self.execs.append((cmd, kw))
@@ -50,7 +56,8 @@ def _backend(volumes=("trainer-home-seat1",), quota=True):
     b = DockerBackend.__new__(DockerBackend)
     b._settings = Settings(_env_file=None, sandbox_disk_quota=quota)
     b._network_ready = True
-    b._client = SimpleNamespace(containers=FakeContainers(), volumes=FakeVolumes(volumes))
+    b._client = SimpleNamespace(containers=FakeContainers(), volumes=FakeVolumes(volumes),
+                                images=SimpleNamespace(get=lambda name: SimpleNamespace(id=IMAGE_ID)))
     return b
 
 
@@ -107,3 +114,15 @@ def test_tty_large_paste_does_not_break():
     tty.close()
     b.close()
     assert len(got) == 2_000_000
+
+
+def test_sandbox_on_an_old_image_is_recreated_on_login_and_home_kept():
+    """Новый образ (например, с node) доходит до уже созданных песочниц при следующем входе; /home — на томе."""
+    b = _backend()
+    old = Box(image_id="sha256:old")
+    b._client.containers.boxes["box"] = old
+    b.ensure("box", {}, "trainer-home-seat1")
+    assert old.removed and b._client.containers.runs  # пересоздана; том не трогали (wipe не вызывался)
+    fresh = b._client.containers.boxes["box"]
+    b.ensure("box", {}, "trainer-home-seat1")
+    assert not fresh.removed and len(b._client.containers.runs) == 1  # на свежем образе — не пересоздаётся

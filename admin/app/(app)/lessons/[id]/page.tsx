@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { use, useState } from "react";
 import { Badge, Button, Card, Empty, ErrorBox, Field, Input, Loading, PageTitle, Select, Textarea }
   from "@/components/ui";
@@ -74,7 +75,9 @@ export default function LessonPage({ params }: { params: Promise<{ id: string }>
   const reloadAll = () => { tasks.reload(); lesson.reload(); };
   return (
     <>
+      <Link href="/lessons" className="mb-2 inline-block text-sm text-indigo-600 hover:underline">← Все уроки</Link>
       <PageTitle actions={<>
+        <Link href="/lessons#new"><Button variant="secondary">+ Новый урок</Button></Link>
         <Button disabled={running} onClick={() => prepare()}>{running ? "Методист готовит…" : "Подготовить задания всем"}</Button>
         {tasks.data.some((t) => t.status === "draft") && <Button variant="secondary" onClick={() =>
           api(`/lessons/${id}/approve`, { method: "POST", body: {} }).then(reloadAll, setError)}>Одобрить всё</Button>}

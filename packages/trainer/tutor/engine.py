@@ -4,6 +4,8 @@
 """
 import logging
 
+from sqlalchemy import Engine, text
+
 from pydantic import BaseModel, Field, ValidationError
 
 from trainer.agents.store import AgentStore
@@ -11,7 +13,7 @@ from trainer.classroom.groups import GroupStore
 from trainer.curriculum.methodist import extract_json
 from trainer.curriculum.tasks import TaskStore
 from trainer.domain import Budget
-from trainer.llm.wiring import build_gateway, remaining_usd
+from trainer.llm.wiring import build_gateway, remaining_usd, spent_usd
 from trainer.llm_gateway.gateway import GatewayError, GatewayRequest
 from trainer.sandbox.checks import CheckResult, recent_history, run_checks
 from trainer.sandbox.manager import SandboxManager
@@ -62,7 +64,23 @@ def _reason(e: Exception) -> str:
     return next((k for k in ("quota_exceeded", "auth") if k in kinds), e.reason)
 
 
-def _prompt(task, results: list[CheckResult], history: list[str], messages) -> str:
+def _turns(n: int) -> str:
+    return "ход" if n % 10 == 1 and n % 100 != 11 else "хода" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "ходов"
+
+
+def cto_brief(engine: Engine, student_id: str, budget_usd: float) -> str:
+    """Сводка для CTO: расход ученика на модели и работа каждого агента (ходы и деньги)."""
+    with engine.connect() as c:
+        rows = c.execute(text("""SELECT l.agent, a.name, count(*) AS n, sum(l.cost_usd) AS usd FROM ledger l
+                                 LEFT JOIN agents a ON a.key = l.agent WHERE l.user_id = :u
+                                 GROUP BY l.agent, a.name ORDER BY usd DESC"""), {"u": student_id}).all()
+    spent = spent_usd(engine, student_id)
+    lines = [f"- {r.name or r.agent} ({r.agent}): {r.n} {_turns(r.n)}, ${float(r.usd):.2f}" for r in rows]
+    return (f"Бюджет ученика на модели: потрачено ${spent:.2f} из ${budget_usd:.2f}, "
+            f"осталось ${max(0.0, budget_usd - spent):.2f}.\nРабота агентов:\n" + ("\n".join(lines) or "- пока не работали"))
+
+
+def _prompt(task, results: list[CheckResult], history: list[str], messages, brief: str = "") -> str:
     checks = "\n".join(f"{'✓' if r.passed else '✗'} {r.about}" + (f" — вывод: {r.output.strip()[:200]}"
                                                                    if r.output.strip() and not r.passed else "")
                        for r in results)
@@ -70,6 +88,7 @@ def _prompt(task, results: list[CheckResult], history: list[str], messages) -> s
                      f"{_cut(m.text, MESSAGE_CHARS)}" for m in messages[-20:]) or "(пока не было — начни разговор)"
     history = _recent(history)
     return (f"Задание ученика: {task.title}\n{task.statement}\n\n"
+            + (f"Сводка по бюджету и агентам:\n{brief}\n\n" if brief else "") +
             f"Результаты проверок в его песочнице (✓ — выполнено, ✗ — нет):\n{checks or '(проверок нет)'}\n\n"
             f"Последние команды ученика (lobby$ — вход, student$ — сервер lab):\n"
             f"{chr(10).join(history) or '(команд пока нет)'}\n\n"
@@ -93,13 +112,14 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
             return
         results = run_checks(manager, student_id, task.checks)
         history = recent_history(manager, student_id)
+        brief = cto_brief(engine, student_id, student.budget_usd) if agent.key == "cto" else ""
         if not JobStore(engine).owns(job_id):  # пока шли проверки, ход признали зависшим — деньги не тратим
             log.warning("ход по заданию %s отобран как зависший — вызов модели пропущен", task_id)
             return
         try:
             resp = build_gateway(engine, deps.settings, student_id=student_id, providers=deps.providers).execute(
                 GatewayRequest(task_id=task_id, agent=agent.key, policy=POLICY, capabilities=[],
-                               system=agent.system_prompt, user=_prompt(task, results, history, messages.for_task(task_id)),
+                               system=agent.system_prompt, user=_prompt(task, results, history, messages.for_task(task_id), brief),
                                budget=Budget(max_input_tokens=32000, max_output_tokens=1500,
                                              max_usd=min(agent.max_usd_per_call, left)),
                                route=agent.route or None))

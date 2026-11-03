@@ -9,14 +9,28 @@ from trainer.agents.seed import seed_agents
 from trainer.agents.store import AgentStore
 
 
-def test_seed_creates_methodist_and_devops_once(engine):
+TEAM = ["devops", "python", "web", "designer", "architect", "ba", "sa", "techlead", "cto"]
+
+
+def test_seed_creates_methodist_and_the_team_once(engine):
     store = AgentStore(engine)
-    assert seed_agents(store) == ["methodist", "devops"]
+    assert seed_agents(store) == ["methodist", *TEAM]
     store.upsert(store.get("devops").model_copy(update={"name": "Мой Девопс"}))
     assert seed_agents(store) == []
     assert store.get("devops").name == "Мой Девопс"  # сид не перезаписывает правки преподавателя
-    assert [a.key for a in store.list(kind="tutor")] == ["devops"]
+    assert sorted(a.key for a in store.list(kind="tutor")) == sorted(TEAM)
     assert "JSON" in store.get("methodist").system_prompt
+    for key in TEAM:  # каждый тьютор отвечает JSON и не выдаёт готовое решение
+        prompt = store.get(key).system_prompt
+        assert '{"reply"' in prompt and "НИКОГДА" in prompt
+
+
+def test_seed_adds_new_team_members_to_an_existing_install(engine):
+    store = AgentStore(engine)
+    seed_agents(store)
+    with engine.begin() as c:
+        c.execute(text("DELETE FROM agents WHERE key IN ('cto', 'web')"))
+    assert seed_agents(store) == ["web", "cto"]
 
 
 @pytest.fixture
@@ -40,7 +54,7 @@ def test_teacher_edits_agent(client):
     body = {"name": "Сисадмин", "kind": "tutor", "system_prompt": "Ты сисадмин", "route": ["openrouter/m"],
             "max_usd_per_call": 0.02, "enabled": True}
     assert t.put("/agents/sysadmin", json=body).status_code == 200
-    assert {a["key"] for a in t.get("/agents").json()} == {"methodist", "devops", "sysadmin"}
+    assert {a["key"] for a in t.get("/agents").json()} == {"methodist", "sysadmin", *TEAM}
 
 
 def test_delete_referenced_agent_409(client):

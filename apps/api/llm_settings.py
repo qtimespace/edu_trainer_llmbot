@@ -20,8 +20,16 @@ from trainer.settings import Settings
 router = APIRouter(prefix="/settings/llm", dependencies=[Depends(teacher_dep)])
 _KEY = re.compile(r"^[a-z]+/[A-Za-z0-9._:-]+$")
 EDITABLE = {"provider", "model", "capabilities", "context_window", "pricing", "enabled", "thinking", "limits",
-            "max_tokens_param"}
-OFFERS_URL = {"openrouter": "https://openrouter.ai/api/v1/models", "hf": "https://router.huggingface.co/v1/models"}
+            "max_tokens_param", "effort"}
+OFFERS_URL = {"openrouter": "https://openrouter.ai/api/v1/models", "hf": "https://router.huggingface.co/v1/models",
+              "zai": "https://api.z.ai/api/coding/paas/v4/models", "kimi": "https://api.moonshot.ai/v1/models",
+              "anthropic": "https://api.anthropic.com/v1/models?limit=1000"}
+
+
+def _auth_headers(provider: str, secret: str) -> dict[str, str]:
+    if provider == "anthropic":  # у Anthropic свой заголовок ключа и обязательная версия API
+        return {"x-api-key": secret, "anthropic-version": "2023-06-01"}
+    return {"Authorization": f"Bearer {secret}"}
 
 
 def _keys(engine: Engine, settings: Settings) -> LlmKeyStore:
@@ -70,7 +78,7 @@ def offers(provider: str, engine: Engine = Depends(engine_dep), settings: Settin
         raise HTTPException(status_code=503, detail=str(e)) from e
     if not secret:
         raise HTTPException(status_code=428, detail=f"сначала задайте ключ {provider}")
-    req = urllib.request.Request(OFFERS_URL[provider], headers={"Authorization": f"Bearer {secret}"})
+    req = urllib.request.Request(OFFERS_URL[provider], headers=_auth_headers(provider, secret))
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 — адрес фиксирован выше
             payload = json.loads(resp.read().decode("utf-8") or "{}")

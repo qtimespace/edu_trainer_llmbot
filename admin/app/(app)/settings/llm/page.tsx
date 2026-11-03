@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Badge, Button, Card, ErrorBox, Field, FormRow, Input, Loading, PageTitle, Select, Table } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { modelBody, modelKey, type Offer, PROVIDERS, type Provider } from "@/lib/llm";
+import { type Manual, modelBody, modelKey, type Offer, PROVIDERS, type Provider } from "@/lib/llm";
 
 type Model = { key: string; provider: string; model: string; context_window: number;
   pricing: { input: number; output: number }; enabled: boolean };
@@ -27,14 +27,29 @@ function KeyRow({ provider, set, onChange }: { provider: Provider; set: boolean;
   );
 }
 
+// Строка списка: чего провайдер не сообщил (цена за 1M, окно) — вводит преподаватель
+function OfferRow({ offer: o, add }: { offer: Offer; add: (o: Offer, manual?: Manual) => void }) {
+  const [m, setM] = useState({ input: "", output: "", context_window: "" });
+  const num = (v: string) => (v.trim() === "" ? NaN : Number(v.replace(",", ".")));
+  const manual = { input: num(m.input), output: num(m.output), context_window: num(m.context_window) };
+  const ok = (o.pricing || (manual.input >= 0 && manual.output >= 0)) && (o.context_window || manual.context_window > 0);
+  const cell = (k: keyof typeof m, ph: string) => <Input className="w-24" value={m[k]} placeholder={ph}
+    onChange={(e) => setM({ ...m, [k]: e.target.value })} />;
+  return <tr><td className="font-mono text-xs">{o.model}</td>
+    <td>{o.context_window ?? cell("context_window", "окно")}</td>
+    <td>{o.pricing ? `$${o.pricing.input} / $${o.pricing.output}`
+      : <span className="flex gap-1">{cell("input", "вход $")}{cell("output", "выход $")}</span>}</td>
+    <td><Button variant="secondary" disabled={!ok} onClick={() => add(o, manual)}>Добавить</Button></td></tr>;
+}
+
 function AddModel({ keys, onChange }: { keys: Record<Provider, boolean>; onChange: () => void }) {
   const [provider, setProvider] = useState<Provider>(keys.openrouter ? "openrouter" : "hf");
   const [offers, setOffers] = useState<Offer[] | null>(null);
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<Error | null>(null);
   const load = () => api<Offer[]>(`/settings/llm/offers/${provider}`).then(setOffers, setError);
-  const add = (o: Offer) => api(`/settings/llm/models/${modelKey(provider, o.model)}`, { method: "PUT",
-    body: modelBody(provider, o) }).then(onChange, setError);
+  const add = (o: Offer, manual?: Manual) => api(`/settings/llm/models/${modelKey(provider, o.model)}`,
+    { method: "PUT", body: modelBody(provider, o, manual) }).then(onChange, setError);
   const shown = (offers ?? []).filter((o) => o.model.toLowerCase().includes(filter.toLowerCase())).slice(0, 50);
   return (
     <Card title="Добавить модель из списка провайдера" className="mt-4">
@@ -49,11 +64,7 @@ function AddModel({ keys, onChange }: { keys: Record<Provider, boolean>; onChang
           placeholder="qwen, llama, deepseek…" /></Field>}
       </FormRow>
       {offers && <Table head={["Модель", "Окно", "Цена за 1M (вход/выход)", ""]}>
-        {shown.map((o) => <tr key={o.model}><td className="font-mono text-xs">{o.model}</td>
-          <td>{o.context_window ?? "?"}</td>
-          <td>{o.pricing ? `$${o.pricing.input} / $${o.pricing.output}` : "нет цены"}</td>
-          <td><Button variant="secondary" disabled={!o.pricing || !o.context_window} onClick={() => add(o)}>Добавить</Button></td>
-        </tr>)}
+        {shown.map((o) => <OfferRow key={o.model} offer={o} add={add} />)}
       </Table>}
     </Card>
   );

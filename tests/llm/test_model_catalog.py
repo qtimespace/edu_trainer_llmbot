@@ -28,6 +28,20 @@ def test_offers_from_other_providers_are_ids_only():
         ["glm-5.3", "glm-5.3-flash"]
 
 
+def test_offers_from_anthropic_take_window_from_the_api_and_price_from_the_known_table():
+    [haiku, unknown] = parse_offers("anthropic", {"data": [
+        {"id": "claude-haiku-5-5", "display_name": "Claude Haiku 5.5", "max_input_tokens": 1000000},
+        {"id": "claude-new-9", "display_name": "Claude New 9"}]})
+    assert (haiku.name, haiku.context_window, haiku.pricing) == ("Claude Haiku 5.5", 1000000,
+                                                                 {"input": 0.1, "output": 0.5})
+    assert unknown.pricing is None  # цену неизвестной модели вводит преподаватель
+
+
+def test_offers_from_kimi_take_the_context_length():
+    [k] = parse_offers("kimi", {"data": [{"id": "kimi-k2.6", "context_length": 262144}]})
+    assert k.context_window == 262144 and k.pricing is None
+
+
 @pytest.mark.db
 def test_catalog_adds_to_and_overrides_the_yaml_registry(engine, tmp_path):
     yaml_path = tmp_path / "registry.yaml"

@@ -15,10 +15,10 @@ export function Button({ variant = "primary", className, ...p }: ButtonHTMLAttri
   return <button className={cx("rounded-md px-3 py-1.5 font-medium disabled:opacity-50", tone, className)} {...p} />;
 }
 
-export function Card({ title, actions, children, className }: { title?: ReactNode; actions?: ReactNode;
-  children: ReactNode; className?: string }) {
+export function Card({ title, actions, children, className, id }: { title?: ReactNode; actions?: ReactNode;
+  children: ReactNode; className?: string; id?: string }) {
   return (
-    <section className={cx("rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900",
+    <section id={id} className={cx("rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900",
       className)}>
       {(title || actions) && <header className="mb-3 flex items-center justify-between gap-2">
         <h2 className="font-semibold">{title}</h2><div className="flex gap-2">{actions}</div></header>}
