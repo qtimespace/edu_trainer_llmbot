@@ -3,6 +3,7 @@ import socket
 import threading
 from types import SimpleNamespace
 
+import docker
 import pytest
 
 from trainer.sandbox.docker_backend import DockerBackend, DockerTty, SandboxDiskError
@@ -31,7 +32,13 @@ class Box:
     status = "running"
 
     def __init__(self, image_id=IMAGE_ID):
-        self.execs, self.image, self.removed = [], SimpleNamespace(id=image_id), False
+        self.execs, self.attrs, self.removed = [], {"Image": image_id}, False
+
+    @property
+    def image(self):  # как docker-py: грузит образ по id; старого образа после пересборки уже может не быть
+        if self.attrs["Image"] != IMAGE_ID:
+            raise docker.errors.ImageNotFound("No such image")
+        return SimpleNamespace(id=IMAGE_ID)
 
     def remove(self, force=False):
         self.removed = True

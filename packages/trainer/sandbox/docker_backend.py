@@ -131,9 +131,9 @@ class DockerBackend:
         with _LOCK:
             box = self._get(name)
             s = self._settings
-            if box is not None and box.image.id != self._client.images.get(s.sandbox_image).id:
-                box.remove(force=True)  # образ обновили (например, добавили node) — пересоздаём; /home на томе цел
-                box = None
+            if box is not None and box.attrs["Image"] != self._client.images.get(s.sandbox_image).id:
+                box.remove(force=True)  # образ обновили — пересоздаём; /home на томе цел. Сравниваем id из attrs:
+                box = None  # box.image грузит старый образ, а его после пересборки может уже не быть
             if box is not None:
                 if box.status != "running":
                     box.start()
