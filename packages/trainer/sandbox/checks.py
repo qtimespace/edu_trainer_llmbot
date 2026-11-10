@@ -10,6 +10,24 @@ log = logging.getLogger(__name__)
 CHECK_TIMEOUT_S = 10
 OUTPUT_LIMIT = 500
 HISTORY_FILES = (("lobby", "/home/lobby/.bash_history"), ("student", "/home/student/.bash_history"))
+FILES_LIMIT = 80
+
+# Что есть в песочнице (sandbox/image/Dockerfile) — методист пишет это в заданиях, тьютор подсказывает по нему
+SANDBOX_NOTE = """Песочница ученика: Debian Linux, bash. Терминал в браузере открывается на входе lobby; на сервер
+lab ученик заходит сам: ssh student@lab, там его домашняя папка /home/student (~).
+Редакторы файлов: nano (самый простой: сохранить — Ctrl+O и Enter, выйти — Ctrl+X), vim и vi (для тех, кто знает).
+Ещё есть: cat, less, echo, ls, tree, mkdir, touch, cp, mv, rm, find, grep, git, python3, node, npm, curl, ssh."""
+
+
+def home_files(manager: SandboxManager, student_id: str) -> list[str]:
+    """Файлы и папки ученика: ~/… — на сервере lab, /home/lobby/… — на входе (ошибся и создал до ssh)."""
+    try:
+        r = manager.list_files(student_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("список файлов не получен: %s", e)
+        return []
+    lines = sorted(line.replace("/home/student/", "~/", 1) for line in r.output.splitlines() if line.strip())
+    return lines[:FILES_LIMIT] + ([f"… и ещё {len(lines) - FILES_LIMIT}"] if len(lines) > FILES_LIMIT else [])
 
 
 @dataclass(frozen=True)

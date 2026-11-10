@@ -57,6 +57,13 @@ class SandboxManager:
         """Файл песочницы от root (история обеих оболочек); песочницу не поднимает — нет её, нет и файла."""
         return self._backend.exec(container_name(student_id), ["tail", "-c", "65536", path], user="root", timeout_s=5)
 
+    def list_files(self, student_id: str) -> ExecResult:
+        """Что лежит в домашних папках (сервер lab и вход lobby), без скрытых и служебных; от root, как read_file."""
+        return self._backend.exec(container_name(student_id), [
+            "find", "/home/student", "/home/lobby", "-mindepth", "1", "-maxdepth", "4",
+            "(", "-name", ".*", "-o", "-name", "node_modules", "-o", "-name", "__pycache__", ")", "-prune",
+            "-o", "-print"], user="root", timeout_s=5)
+
     def tty(self, student_id: str) -> TtySession:
         self.ensure_for(student_id)
         return self._backend.attach_tty(container_name(student_id), "lobby")

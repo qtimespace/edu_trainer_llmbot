@@ -44,6 +44,16 @@ def test_prepare_creates_drafts_per_student(world):
     assert LessonStore(engine).get(lesson.id).prep_status == "idle"
 
 
+def test_methodist_knows_the_editors_and_writes_exact_names(world):
+    """Ученики не знали, чем редактировать файл, и называли папки по-своему — задание не засчитывалось."""
+    engine, teacher, kids, lesson = world
+    fake = install_fake_llm(app, [reply(TASKS), reply(TASKS)])
+    teacher.post(f"/lessons/{lesson.id}/prepare", json={})
+    user = fake.calls[0].user
+    assert "nano" in user and "vim" in user  # какие редакторы есть в песочнице
+    assert "точн" in user and "лишн" in user  # точные имена в формулировке; про лишние файлы — сказать заранее
+
+
 def test_unknown_agent_key_falls_back_to_tutor(world):
     engine, teacher, kids, lesson = world
     install_fake_llm(app, [reply(TASKS), reply(TASKS)])

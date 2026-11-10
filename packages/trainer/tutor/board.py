@@ -74,7 +74,8 @@ def move_task(deps: LlmDeps, manager: SandboxManager, run, task: Task, target: s
             messages.add(task.id, "system", "Все проверки прошли — задание готово.")
             return DONE
         failed = "; ".join(r.about for r in results if not r.passed) or "проверок нет"
-        detail = f"В «Готово» пока рано — не прошли проверки: {failed}"
+        detail = (f"В «Готово» пока рано — не прошли проверки: {failed}. Сверь имена файлов и папок с заданием "
+                  f"буква в букву и убери лишние попытки рядом.")
         messages.add(task.id, "system", detail)
         if task.status != "todo":
             _turn(deps, manager, run, task, current, flow)  # агент этапа разберёт, что не так

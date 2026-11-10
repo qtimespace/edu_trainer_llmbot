@@ -28,6 +28,8 @@ def world(api):
     def handler(name, cmd, user):
         if cmd[0] == "tail":
             return ExecResult(0, history.get(cmd[-1], ""))
+        if cmd[0] == "find":
+            return ExecResult(0, "/home/student/Temp\n/home/student/Temp/test.py\n/home/student/temp\n")
         return ExecResult(0 if passing.get(cmd[-1]) else 1, "")
     fake = FakeBackend(handler)
     sandbox_api.BACKENDS["fake"] = fake
@@ -66,6 +68,16 @@ def test_start_asks_first_question(world):
     assert [m["text"] for m in msgs["messages"]] == ["Как подключишься к серверу?"]
     assert "Удали Tmp" in fake.calls[0].user and "mkdir Temp" in fake.calls[0].user
     assert "✗ в Temp есть test.py" in fake.calls[0].user
+
+
+def test_tutor_sees_the_files_in_the_sandbox_and_tells_to_tidy_up(world):
+    """Правильная папка есть, но рядом неудачная попытка — тьютор видит её и просит прибраться."""
+    engine, kid, kids, ids, passing = world
+    fake = install_fake_llm(app, [reply({"reply": "Рядом лишняя папка temp", "done": False})])
+    kid.post(f"/me/tasks/{ids[0]}/start")
+    user = fake.calls[0].user
+    assert "~/Temp/test.py" in user and "~/temp" in user
+    assert "прибраться" in user and "nano" in user
 
 
 def test_done_only_when_all_checks_pass(world):

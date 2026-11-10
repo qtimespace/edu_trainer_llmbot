@@ -11,6 +11,7 @@ from trainer.curriculum.tasks import Check, TaskStore
 from trainer.domain import Budget
 from trainer.llm.wiring import build_gateway
 from trainer.llm_gateway.gateway import GatewayError, GatewayRequest
+from trainer.sandbox.checks import SANDBOX_NOTE
 from trainer.tutor.jobs import JobStore, LlmDeps
 
 log = logging.getLogger(__name__)
@@ -36,8 +37,20 @@ def extract_json(raw: str) -> dict:
     return json.loads(raw[start:end + 1])
 
 
+# Правила поверх системного промпта (его правит преподаватель): про них жаловались на уроке
+TASK_RULES = """Чтобы ученик не застревал, в формулировке каждого задания:
+- точные имена файлов и папок, которые проверяются, и где они лежат (например «в домашней папке на сервере lab
+  создай папку Project, в ней файл idea.txt»); регистр букв и расширение важны — так и напиши;
+- если в задании нужно писать текст или код в файл — назови редактор: новичку nano (и как в нём сохранить и выйти),
+  тем, кто знает, — можно vim;
+- если проверка требует, чтобы рядом не было ничего лишнего (неудачных попыток, файлов с другими именами,
+  посторонних папок), — скажи это прямо: «в папке должен остаться только …, лишнее удали». Если не требует —
+  проверки пиши так, чтобы лишние файлы рядом их не роняли (test -f / grep по нужному файлу, а не ls целиком)."""
+
+
 def _prompt(lesson: Lesson, student: Student, tutors: list[dict]) -> str:
-    return (f"Урок: {lesson.title}\n\nОписание урока от преподавателя:\n{lesson.description}\n\n"
+    return (f"{SANDBOX_NOTE}\n\n{TASK_RULES}\n\n"
+            f"Урок: {lesson.title}\n\nОписание урока от преподавателя:\n{lesson.description}\n\n"
             f"Ученик: {student.name}\nЗаметка преподавателя об ученике: {student.note or '(нет)'}\n\n"
             f"Агенты-тьюторы (agent_key → имя): {json.dumps(tutors, ensure_ascii=False)}")
 

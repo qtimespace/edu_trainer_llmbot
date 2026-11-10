@@ -17,7 +17,7 @@ from trainer.curriculum.tasks import TaskStore
 from trainer.domain import Budget
 from trainer.llm.wiring import build_gateway, remaining_usd, spent_usd
 from trainer.llm_gateway.gateway import GatewayError, GatewayRequest
-from trainer.sandbox.checks import CheckResult, recent_history, run_checks
+from trainer.sandbox.checks import SANDBOX_NOTE, CheckResult, home_files, recent_history, run_checks
 from trainer.sandbox.manager import SandboxManager
 
 from .jobs import JobStore, LlmDeps
@@ -89,7 +89,16 @@ def _stage_line(task, flow: Flow) -> str:
             + (f"; дальше ученик сам переносит карточку: {', '.join(nxt)}" if nxt else "") + ".\n\n")
 
 
-def _prompt(task, results: list[CheckResult], history: list[str], messages, brief: str = "", stage: str = "") -> str:
+# Поверх системного промпта (его правит преподаватель): ученики не знали редактора и не понимали, почему
+# проверка не проходит, когда рядом с правильной папкой лежат неудачные попытки
+TIDY_RULES = """Если проверка не прошла, сравни её с файлами ученика: имя с другой буквой или расширением, файл не в той
+папке или создан на входе lobby, а не на сервере lab, — скажи, что именно не так. Если нужное уже сделано, но рядом
+лежат неудачные попытки или посторонние папки — прямо скажи, что в проекте беспорядок и надо прибраться: назови,
+что лишнее (без готовой команды удаления целиком). Спросил, чем писать в файл, — подскажи редактор из списка выше."""
+
+
+def _prompt(task, results: list[CheckResult], history: list[str], messages, brief: str = "", stage: str = "",
+            files: list[str] | None = None) -> str:
     checks = "\n".join(f"{'✓' if r.passed else '✗'} {r.about}" + (f" — вывод: {r.output.strip()[:200]}"
                                                                    if r.output.strip() and not r.passed else "")
                        for r in results)
@@ -98,7 +107,10 @@ def _prompt(task, results: list[CheckResult], history: list[str], messages, brie
     history = _recent(history)
     return (f"Задание ученика: {task.title}\n{task.statement}\n\n" + stage
             + (f"Сводка по бюджету и агентам:\n{brief}\n\n" if brief else "") +
+            f"{SANDBOX_NOTE}\n\n"
             f"Результаты проверок в его песочнице (✓ — выполнено, ✗ — нет):\n{checks or '(проверок нет)'}\n\n"
+            f"Файлы и папки ученика (~ — сервер lab, /home/lobby — вход), без скрытых:\n"
+            f"{chr(10).join(files or []) or '(пусто)'}\n\n{TIDY_RULES}\n\n"
             f"Последние команды ученика (lobby$ — вход, student$ — сервер lab):\n"
             f"{chr(10).join(history) or '(команд пока нет)'}\n\n"
             f"Переписка:\n{talk}")
@@ -123,6 +135,7 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
             return
         results = run_checks(manager, student_id, task.checks)
         history = recent_history(manager, student_id)
+        files = home_files(manager, student_id)
         brief = cto_brief(engine, student_id, student.budget_usd) if agent.key == "cto" else ""
         if not JobStore(engine).owns(job_id):  # пока шли проверки, ход признали зависшим — деньги не тратим
             log.warning("ход по заданию %s отобран как зависший — вызов модели пропущен", task_id)
@@ -131,7 +144,7 @@ def tutor_turn(deps: LlmDeps, manager: SandboxManager, task_id: str, student_id:
             resp = build_gateway(engine, deps.settings, student_id=student_id, providers=deps.providers).execute(
                 GatewayRequest(task_id=task_id, agent=agent.key, policy=POLICY, capabilities=[],
                                system=agent.system_prompt, user=_prompt(task, results, history, messages.for_task(task_id), brief,
-                                                                       _stage_line(task, flow)),
+                                                                       _stage_line(task, flow), files),
                                budget=Budget(max_input_tokens=32000, max_output_tokens=1500,
                                              max_usd=min(agent.max_usd_per_call, left)),
                                route=agent.route or None))

@@ -68,6 +68,7 @@ def test_done_only_when_checks_pass_otherwise_agent_explains(world):
         kid.post(f"/me/tasks/{ids[0]}/move", json={"stage": stage})
     r = kid.post(f"/me/tasks/{ids[0]}/move", json={"stage": "done"})
     assert r.status_code == 409 and "папки Tmp больше нет" in r.json()["detail"]
+    assert "лишн" in r.json()["detail"]  # подсказка: точные имена, убрать лишние попытки рядом
     assert len(fake.calls) == 4  # агент этапа объясняет, что не так
     assert _card(kid.get("/me/board").json(), ids[0])["stage"] == "review"
     passing["test ! -d ~/Tmp"] = True
