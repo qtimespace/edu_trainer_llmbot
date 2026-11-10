@@ -124,7 +124,9 @@ async def terminal(ws: WebSocket) -> None:
         stop.set()
         for task in (sender, receiver):
             task.cancel()
-        await run_in_threadpool(tty.close)
+        # поток с закрытием стартует сразу и не отменяется: обработчик отменяют сразу после отключения
+        # (TestClient, остановка сервера) — иначе оболочка в песочнице осталась бы висеть
+        await asyncio.shield(loop.run_in_executor(None, tty.close))
         try:
             await ws.close()
         except Exception:  # noqa: BLE001 — уже закрыто клиентом

@@ -43,6 +43,27 @@ def test_ws_echo_roundtrip(world):
     assert world.ttys[0].closed  # закрыли вкладку — оболочка закрыта
 
 
+def test_shell_closed_even_if_handler_is_cancelled_right_after_disconnect(world, monkeypatch):
+    """TestClient (и сервер при остановке) отменяет обработчик сразу после отключения: закрытие оболочки
+    не должно зависеть от того, успел ли поток стартовать до отмены."""
+    import anyio
+
+    import apps.api.terminal as terminal
+    real = terminal.run_in_threadpool
+
+    async def slow_start(fn, *args):  # поток стартует с задержкой — отмена успевает прийти раньше
+        await anyio.sleep(0.3)
+        return await real(fn, *args)
+
+    with _kid().websocket_connect("/ws/terminal", headers=ORIGIN) as ws:
+        ws.send_bytes(b"x")
+        monkeypatch.setattr(terminal, "run_in_threadpool", slow_start)
+    deadline = time.time() + 2
+    while not world.ttys[0].closed and time.time() < deadline:
+        time.sleep(0.02)
+    assert world.ttys[0].closed
+
+
 def test_resize_forwarded(world):
     with _kid().websocket_connect("/ws/terminal", headers=ORIGIN) as ws:
         ws.send_text(json.dumps({"type": "resize", "cols": 120, "rows": 40}))
