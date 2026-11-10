@@ -1,9 +1,9 @@
-# Песочница ученика: Linux с bash, git, python3, node/npm и ssh. Терминал браузера входит как lobby,
+# Песочница ученика: Linux с bash, vim, nano, git, python3, node/npm и ssh. Терминал браузера входит как lobby,
 # ученик сам подключается: ssh student@lab (учебный пароль задаёт entrypoint из LESSON_PASSWORD).
 FROM debian:bookworm-slim
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        bash coreutils nano vim-tiny less procps curl ca-certificates git python3 nodejs npm \
+        bash coreutils nano vim less procps curl ca-certificates git python3 nodejs npm \
         openssh-client openssh-server sshpass iputils-ping iproute2 tree file man-db \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -s /bin/bash lobby \
