@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { clock, dayBreaks, failedCount, prompt, reviewTab } from "./review";
+import { REVIEW_TABS, TAB_LABEL, clock, dayBreaks, failedCount, prompt, reviewTab, studentHref } from "./review";
 
 describe("review", () => {
   it("unknown tab falls back to the board", () => {
     expect(reviewTab("console")).toBe("console");
     expect(reviewTab("nope")).toBe("board");
     expect(reviewTab(null)).toBe("board");
+  });
+
+  it("links straight to a tab of the student's page", () => {
+    expect(studentHref("s1", "console")).toBe("/group/s1?tab=console");
+    expect(REVIEW_TABS.map((t) => TAB_LABEL[t])).toEqual(["Доска", "Чат", "Консоль", "Разбор задания"]);
   });
 
   it("shows where the command was typed", () => {

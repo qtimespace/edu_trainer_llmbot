@@ -1,14 +1,29 @@
 "use client";
 // Работа ученика глазами преподавателя: переписка целиком, команды в терминале, разбор задания (apps/api/review.py).
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, Empty, ErrorBox, Loading, Select } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { BoardTask } from "@/lib/board";
 import { useApi } from "@/lib/hooks";
-import { type Analysis, type ChatItem, type ConsoleItem, type Inspect, clock, dayBreaks, failedCount,
-  prompt } from "@/lib/review";
+import { type Analysis, type ChatItem, type ConsoleItem, type Inspect, REVIEW_TABS, TAB_LABEL, clock, dayBreaks,
+  failedCount, prompt, studentHref } from "@/lib/review";
 
 type TaskPick = Pick<BoardTask, "id" | "number" | "title">;
+
+// Вход на страницу ученика сразу в нужную вкладку (офис, группа)
+export function StudentLinks({ studentId, compact }: { studentId: string; compact?: boolean }) {
+  return (
+    <div className={`flex flex-wrap ${compact ? "gap-x-2 gap-y-1" : "gap-2"}`}>
+      {REVIEW_TABS.map((t) => (
+        <Link key={t} href={studentHref(studentId, t)} className={compact
+          ? "text-sm text-indigo-600 hover:underline"
+          : "rounded-md border border-indigo-200 px-2.5 py-1 text-sm text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950"}>
+          {TAB_LABEL[t]}</Link>
+      ))}
+    </div>
+  );
+}
 
 function TaskSelect({ tasks, value, onChange, all }: { tasks: TaskPick[]; value: string;
   onChange: (id: string) => void; all?: string }) {

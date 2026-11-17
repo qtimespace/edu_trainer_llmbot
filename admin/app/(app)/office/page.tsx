@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { RoomFeed } from "@/components/office/RoomFeed";
 import { RoomsOffice } from "@/components/office/RoomsOffice";
+import { StudentLinks } from "@/components/StudentReview";
 import { Badge, Card, ErrorBox, Loading, Modal, PageTitle } from "@/components/ui";
 import { useApi } from "@/lib/hooks";
 import { type Office, type RoomAgent, STATE_LABEL } from "@/lib/rooms";
@@ -25,8 +26,10 @@ export default function OfficePage() {
             onAgent={(sid, a) => { setRoom(sid); setAgent(a); }} />
           <p className="mt-2 text-xs text-zinc-500">Нажмите на комнату, чтобы видеть ответы LLM, или на агента — что он делает.</p>
         </div>
-        <div className="xl:w-96">{selected ? <RoomFeed key={selected.id} studentId={selected.id} name={selected.name} />
-          : <Card><span className="text-zinc-500">Выберите комнату</span></Card>}</div>
+        <div className="xl:w-96">{selected ? <>
+          <Card className="mb-3" title={selected.name}><StudentLinks studentId={selected.id} /></Card>
+          <RoomFeed key={selected.id} studentId={selected.id} name={selected.name} />
+        </> : <Card><span className="text-zinc-500">Выберите комнату</span></Card>}</div>
       </div>
       <Modal open={agent !== null} title={agent?.name ?? ""} onClose={() => setAgent(null)}>
         {agent && <>

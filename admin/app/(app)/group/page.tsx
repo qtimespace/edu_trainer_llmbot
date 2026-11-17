@@ -1,6 +1,6 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
+import { StudentLinks } from "@/components/StudentReview";
 import { Badge, Button, Card, ErrorBox, Field, FormRow, Input, Loading, Modal, PageTitle, Select, Table, Textarea }
   from "@/components/ui";
 import { api } from "@/lib/api";
@@ -43,14 +43,14 @@ function StudentRow({ s, onChange }: { s: Student; onChange: () => void }) {
   return (
     <tr>
       <td>{s.seat}</td>
-      <td><div className="font-medium">{s.name}</div><div className="text-xs text-zinc-500">{s.login}</div></td>
+      <td><div className="font-medium">{s.name}</div><div className="text-xs text-zinc-500">{s.login}</div>
+        <div className="mt-1"><StudentLinks studentId={s.account_id} compact /></div></td>
       <td className="max-w-xs whitespace-pre-wrap text-xs">{s.note || "—"}</td>
       <td><code>{s.lesson_password}</code></td>
       <td>${s.budget_usd.toFixed(2)}</td>
       <td><Badge tone={box?.status === "running" ? "green" : "gray"}>{box?.status === "running" ? "работает"
         : box?.status === "stopped" ? "остановлен" : "не создан"}</Badge></td>
       <td className="whitespace-nowrap">
-        <Link href={`/group/${s.account_id}`} className="mr-2 text-sm text-indigo-600 hover:underline">Доска</Link>
         <Button variant="ghost" onClick={() => setEdit(true)}>Изменить</Button>
         <Button variant="ghost" onClick={reset}>Пересоздать сервер</Button>
         <Button variant="ghost" onClick={() => api<{ password: string }>(`/group/students/${s.account_id}/password`,

@@ -9,6 +9,9 @@ export type Analysis = { text: string; model: string; cost_usd: number };
 
 export const REVIEW_TABS = ["board", "chat", "console", "review"] as const;
 export type ReviewTab = (typeof REVIEW_TABS)[number];
+export const TAB_LABEL: Record<ReviewTab, string> = { board: "Доска", chat: "Чат", console: "Консоль",
+  review: "Разбор задания" };
+export const studentHref = (studentId: string, tab: ReviewTab): string => `/group/${studentId}?tab=${tab}`;
 export const reviewTab = (v: string | null): ReviewTab =>
   (REVIEW_TABS as readonly string[]).includes(v ?? "") ? (v as ReviewTab) : "board";
 
