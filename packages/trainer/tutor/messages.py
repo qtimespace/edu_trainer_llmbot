@@ -44,6 +44,15 @@ class MessageStore:
                              {"t": task_id, "n": limit})
             return [_message(r) for r in rows]
 
+    def student_chat(self, student_id: str, task_id: str | None = None, limit: int = 300) -> list[tuple[Message, str]]:
+        """Вся переписка ученика (и его сообщения тоже) — для преподавателя; можно по одному заданию."""
+        with self._engine.connect() as c:
+            rows = c.execute(text("""SELECT m.*, t.title FROM task_messages m JOIN tasks t ON t.id = m.task_id
+                                     WHERE t.student_id = CAST(:s AS uuid)
+                                       AND (CAST(:t AS uuid) IS NULL OR m.task_id = CAST(:t AS uuid))
+                                     ORDER BY m.created_at DESC LIMIT :n"""), {"s": student_id, "t": task_id, "n": limit})
+            return [(_message(r), r.title) for r in rows][::-1]
+
     def agent_feed(self, student_id: str, limit: int = 50) -> list[tuple[Message, str]]:
         """Ответы агентов и системные сообщения по всем заданиям ученика (окно «ответы LLM» преподавателя)."""
         with self._engine.connect() as c:

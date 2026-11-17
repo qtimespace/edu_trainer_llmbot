@@ -55,19 +55,19 @@ def run_checks(manager: SandboxManager, student_id: str, checks: list[Check]) ->
     return results
 
 
-def _parse(user: str, raw: str) -> list[tuple[int, str]]:
+def _parse(user: str, raw: str) -> list[tuple[int, str, str]]:
     out, ts = [], 0
     for line in raw.splitlines():
         if line.startswith("#") and line[1:].isdigit():
             ts = int(line[1:])
         elif line.strip():
-            out.append((ts, f"{user}$ {line}"))
+            out.append((ts, user, line))
     return out
 
 
-def recent_history(manager: SandboxManager, student_id: str, limit: int = 40) -> list[str]:
-    """Последние команды из обеих оболочек (вход lobby и сервер student), по времени."""
-    entries: list[tuple[int, str]] = []
+def history_entries(manager: SandboxManager, student_id: str, limit: int = 40) -> list[tuple[int, str, str]]:
+    """Последние команды из обеих оболочек (вход lobby и сервер student) по времени: (unix-время, оболочка, команда)."""
+    entries: list[tuple[int, str, str]] = []
     for user, path in HISTORY_FILES:
         try:
             r = manager.read_file(student_id, path)
@@ -77,4 +77,24 @@ def recent_history(manager: SandboxManager, student_id: str, limit: int = 40) ->
         if r.exit_code == 0:
             entries += _parse(user, r.output)
     entries.sort(key=lambda e: e[0])  # sort устойчивый: порядок внутри одной секунды сохраняется
-    return [line for _ts, line in entries[-limit:]]
+    return entries[-limit:]
+
+
+def recent_history(manager: SandboxManager, student_id: str, limit: int = 40) -> list[str]:
+    return [f"{user}$ {cmd}" for _ts, user, cmd in history_entries(manager, student_id, limit)]
+
+
+def file_notes(paths: list[str]) -> list[dict]:
+    """Пометки для преподавателя: файл на входе lobby (создан до ssh) и имена, отличающиеся только регистром."""
+    lowered: dict[str, int] = {}
+    for p in paths:
+        lowered[p.lower()] = lowered.get(p.lower(), 0) + 1
+    out = []
+    for p in paths:
+        notes = []
+        if p.startswith("/home/lobby/"):
+            notes.append("на входе lobby, а не на сервере lab")
+        if lowered[p.lower()] > 1:
+            notes.append("похожее имя рядом — отличается только регистром")
+        out.append({"path": p, "note": "; ".join(notes)})
+    return out

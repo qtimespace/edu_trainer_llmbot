@@ -29,7 +29,7 @@ def world(api):
         if cmd[0] == "tail":
             return ExecResult(0, history.get(cmd[-1], ""))
         if cmd[0] == "find":
-            return ExecResult(0, "/home/student/Temp\n/home/student/Temp/test.py\n/home/student/temp\n")
+            return ExecResult(0, "/home/student/Temp\n/home/student/Temp/test.py\n/home/student/temp\n/home/lobby/idea.txt\n")
         return ExecResult(0 if passing.get(cmd[-1]) else 1, "")
     fake = FakeBackend(handler)
     sandbox_api.BACKENDS["fake"] = fake
