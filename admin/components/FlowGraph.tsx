@@ -3,7 +3,6 @@
 // Состояние — документ флоу; узлы и стрелки выводятся из него (lib/flow.ts), правки возвращаются через onChange.
 import { Background, Controls, Handle, MarkerType, Position, ReactFlow, useNodesState, type Edge, type Node,
   type NodeProps } from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
 import { useEffect, useMemo, useState } from "react";
 import { addStage, connect, type EdgeKind, type Flow, graph, moveNode, removeStage, removeTransition,
   updateStage } from "@/lib/flow";
