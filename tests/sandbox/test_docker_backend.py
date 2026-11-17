@@ -31,7 +31,7 @@ def test_russian_works_in_terminal_and_over_ssh(box):
     """Кириллица в терминале: локаль UTF-8 и на входе lobby, и после ssh на lab (иначе Backspace режет буквы пополам,
     а ls показывает русские имена восьмеричными кодами)."""
     backend, name = box
-    r = backend.exec(name, ["bash", "-lc", "locale charmap; sshpass -p kot-les-dom ssh -o StrictHostKeyChecking=no "
+    r = backend.exec(name, ["bash", "-lc", "locale charmap; sshpass -p kot-les-dom ssh -o StrictHostKeyChecking=no -o LogLevel=ERROR "
                                            "student@lab 'locale charmap; mkdir -p d && touch d/файл.txt && ls d'"],
                      user="lobby", timeout_s=20)
     assert r.output.split() == ["UTF-8", "UTF-8", "файл.txt"], r.output
