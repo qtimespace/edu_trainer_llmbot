@@ -16,7 +16,10 @@ FILES_LIMIT = 80
 SANDBOX_NOTE = """Песочница ученика: Debian Linux, bash. Терминал в браузере открывается на входе lobby; на сервер
 lab ученик заходит сам: ssh student@lab, там его домашняя папка /home/student (~).
 Редакторы файлов: nano (самый простой: сохранить — Ctrl+O и Enter, выйти — Ctrl+X), vim и vi (для тех, кто знает).
-Ещё есть: cat, less, echo, ls, tree, mkdir, touch, cp, mv, rm, find, grep, git, python3, node, npm, curl, ssh."""
+Ещё есть: cat, less, echo, ls, tree, mkdir, touch, cp, mv, rm, find, grep, git, python3, node, npm, curl, ssh.
+Русские буквы в терминале и в файлах работают (UTF-8). Не у всех есть русская раскладка: такой ученик пишет транслитом
+(privet), а проверка ждёт русские слова — в чате задания есть «Транслит → русский»: перевести, скопировать и вставить
+в терминал или в nano по Ctrl+V. Сообщения транслитом в чате понимай как обычные."""
 
 
 def home_files(manager: SandboxManager, student_id: str) -> list[str]:

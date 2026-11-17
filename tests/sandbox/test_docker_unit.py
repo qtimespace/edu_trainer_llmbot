@@ -133,3 +133,13 @@ def test_sandbox_on_an_old_image_is_recreated_on_login_and_home_kept():
     fresh = b._client.containers.boxes["box"]
     b.ensure("box", {}, "trainer-home-seat1")
     assert not fresh.removed and len(b._client.containers.runs) == 1  # на свежем образе — не пересоздаётся
+
+
+def test_terminal_shell_speaks_utf8_so_russian_letters_are_not_cut_in_half():
+    seen = {}
+    b = _backend()
+    b._client.api = SimpleNamespace(
+        exec_create=lambda name, cmd, **kw: seen.update(kw) or {"Id": "e1"},
+        exec_start=lambda *a, **k: socket.socketpair()[0])
+    b.attach_tty("box", "lobby")
+    assert seen["environment"]["LANG"] == "C.UTF-8"

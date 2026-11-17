@@ -1,6 +1,7 @@
 "use client";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef, useState } from "react";
+import { clipboardKey } from "@/lib/clipboard";
 import { wsUrl } from "@/lib/tasks";
 
 // Терминал песочницы ученика: xterm ↔ WebSocket /ws/terminal (бинарные кадры; ресайз — JSON).
@@ -30,6 +31,15 @@ export function Terminal({ generation = 0 }: { generation?: number }) {
       ws.onopen = () => { setState("open"); sendSize(); term.focus(); };
       ws.onmessage = (e) => term.write(typeof e.data === "string" ? e.data : new Uint8Array(e.data as ArrayBuffer));
       ws.onclose = () => { setState("closed"); term.write("\r\n\x1b[33m[соединение закрыто]\x1b[0m\r\n"); };
+      // Ctrl+V — вставить (браузер кладёт текст в поле xterm, тот шлёт его в onData), Ctrl+C с выделением — копировать
+      term.attachCustomKeyEventHandler((e) => {
+        const act = clipboardKey(e, term.hasSelection());
+        if (act === "copy") {
+          e.preventDefault();
+          navigator.clipboard?.writeText(term.getSelection()).catch(() => undefined);
+        }
+        return act === null;
+      });
       const input = term.onData((d) => { if (ws.readyState === WebSocket.OPEN) ws.send(enc.encode(d)); });
       const ro = new ResizeObserver(() => { fit.fit(); sendSize(); });
       ro.observe(host.current);

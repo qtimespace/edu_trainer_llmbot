@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { TranslitBox } from "@/components/TranslitBox";
 import { Button, ErrorBox, Textarea } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
@@ -54,6 +55,8 @@ export function TaskChat({ taskId, agentName, onStatus }: { taskId: string; agen
         <div ref={end} />
       </div>
       <ErrorBox error={err} />
+      {data.status !== "done" && <TranslitBox taskId={taskId}
+        onUse={canSend(data.status, data.running) ? (t) => setText((cur) => (cur.trim() ? `${cur.trimEnd()} ${t}` : t)) : undefined} />}
       {canStart(data.status) ? (
         <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
           <Button className="w-full" disabled={busy} onClick={() => act(`/me/tasks/${taskId}/start`)}>Отправить агенту</Button>

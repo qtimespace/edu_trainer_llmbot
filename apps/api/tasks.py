@@ -8,12 +8,14 @@ from apps.api.deps import engine_dep, providers_dep, runner_dep, settings_dep
 from apps.api.sandbox import manager_dep
 from trainer.curriculum.flow import FlowStore, agent_for
 from trainer.curriculum.tasks import TaskStore
+from trainer.llm_gateway.gateway import GatewayError
 from trainer.sandbox.manager import SandboxManager
 from trainer.settings import Settings
 from trainer.tutor.board import MoveError, move_task, tutor_keys
 from trainer.tutor.engine import tutor_turn
 from trainer.tutor.jobs import JobStore, LlmDeps
 from trainer.tutor.messages import MessageStore
+from trainer.tutor.translit import MAX_CHARS, TranslitError, translit
 
 router = APIRouter(prefix="/me/tasks")
 
@@ -90,3 +92,20 @@ def send(task_id: str, body: MessageBody, who=Depends(student_dep), engine: Engi
     MessageStore(engine).add(task_id, "student", body.text.strip())
     run(tutor_turn, LlmDeps(engine, settings, providers), manager, task.id, who.id, job)
     return {"status": "running"}
+
+
+class TranslitBody(BaseModel):
+    text: str = Field(min_length=1, max_length=MAX_CHARS, pattern=r"\S")
+
+
+@router.post("/{task_id}/translit")
+def to_russian(task_id: str, body: TranslitBody, who=Depends(student_dep), engine: Engine = Depends(engine_dep),
+               settings: Settings = Depends(settings_dep), providers=Depends(providers_dep)) -> dict:
+    """Нет русской раскладки: транслит → кириллица (агент задания, за счёт бюджета ученика)."""
+    task = own_task_or_404(engine, task_id, who.id)
+    try:
+        return {"text": translit(LlmDeps(engine, settings, providers), task, who.id, body.text)}
+    except TranslitError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except GatewayError as e:
+        raise HTTPException(status_code=502, detail=f"агент не ответил ({e.reason}) — попробуй ещё раз") from e

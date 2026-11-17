@@ -185,7 +185,7 @@ class DockerBackend:
         pidfile = f"/tmp/.tty-{token}"
         # оболочка запоминает свой номер сессии: при закрытии вкладки завершаем её вместе с ssh и всем, что запущено
         exec_id = api.exec_create(name, ["bash", "-c", f"echo $$ > {pidfile}; exec bash -l"], stdin=True, tty=True,
-                                  user=user, workdir=f"/home/{user}", environment={"TERM": "xterm-256color"})["Id"]
+                                  user=user, workdir=f"/home/{user}", environment={"TERM": "xterm-256color", "LANG": "C.UTF-8"})["Id"]
         sock = api.exec_start(exec_id, socket=True, tty=True)
 
         def kill_session() -> None:
