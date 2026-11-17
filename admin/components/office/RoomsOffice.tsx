@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ATTENTION, plateSuffix } from "@/lib/attention";
 import type { ChibiPose } from "@/lib/chibi";
 import { depthOrder, type Facing, TH, toGrid, toScreen, TW } from "@/lib/iso";
 import { bubbleFor, cabinAt, type Cell, isDark, type Office, officePlan, type Rect, roomLayout,
@@ -150,7 +151,10 @@ export function RoomsOffice({ office, onAgent, selected, onRoom }: { office: Off
           // табличка — у двери, со стороны коридора
           const dark = isDark(room), p = toScreen(cab.rect.x0 + (cab.back ? 1.5 : 6), cab.door.y, origin);
           const pos = `absolute -translate-x-1/2 ${cab.back ? "translate-y-0.5" : "-translate-y-[calc(100%+2px)]"}`;
-          const text = `${room.student ? room.student.name : "свободно"}${room.student && dark ? " · не в сети" : ""}`;
+          // ученик в сети: точка и подпись — куда смотрит его вкладка (видит только преподаватель)
+          const seen = room.student && !dark ? room.attention : undefined;
+          const text = <>{seen && <span className={`mr-1 inline-block h-2 w-2 rounded-full ${ATTENTION[seen.state].dot}`} />}
+            {room.student ? room.student.name : "свободно"}{room.student ? plateSuffix(!dark, seen, Date.now()) : ""}</>;
           return (
             <div key={room.seat}>
               {room.student && onRoom

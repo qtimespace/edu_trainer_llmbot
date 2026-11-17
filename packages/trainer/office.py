@@ -58,7 +58,10 @@ def office(engine: Engine, only_student: str | None = None) -> dict:
     if group is None:
         return {"size": 0, "rooms": []}
     students = {s.seat: s for s in GroupStore(engine).students()}
-    online = PresenceStore(engine).online([s.account_id for s in students.values()])
+    presence = PresenceStore(engine)
+    online = presence.online([s.account_id for s in students.values()])
+    # куда смотрит вкладка ученика — только преподавателю (табличка кабинета)
+    attention = presence.current(list(online)) if only_student is None else {}
     tutors = AgentStore(engine).list(kind="tutor", enabled_only=True)
     rooms = []
     for seat in range(1, group.size + 1):
@@ -68,5 +71,8 @@ def office(engine: Engine, only_student: str | None = None) -> dict:
         if student is None:
             rooms.append({"seat": seat, "student": None, "online": False, "lights": False, "agents": []})
         else:
-            rooms.append(room_for(engine, student, student.account_id in online, tutors))
+            room = room_for(engine, student, student.account_id in online, tutors)
+            if student.account_id in attention:
+                room["attention"] = attention[student.account_id]
+            rooms.append(room)
     return {"size": group.size, "rooms": rooms}

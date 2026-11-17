@@ -24,6 +24,9 @@ export function Shell({ children }: { children: ReactNode }) {
       </aside>
       <div className="min-w-0 flex-1">
         <header className="flex items-center justify-end gap-3 border-b border-zinc-200 px-6 py-2 dark:border-zinc-800">
+          {role === "student" && <span className="mr-auto text-xs text-zinc-400"
+            title="Видно только «смотрит / окно не в фокусе / вкладка скрыта» — не содержимое экрана и не другие программы">
+            👁 Преподаватель видит, открыто ли окно тренажёра и в фокусе ли оно</span>}
           <span className="text-zinc-500">{me.account.name || me.account.login}
             {role === "teacher" ? " · преподаватель" : ""}</span>
           <button className="text-zinc-500 hover:underline" onClick={logout}>Выйти</button>

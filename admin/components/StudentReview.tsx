@@ -4,12 +4,46 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Badge, Button, Card, Empty, ErrorBox, Loading, Select } from "@/components/ui";
 import { api } from "@/lib/api";
+import { ATTENTION, type AttentionLog, ago, duration, focusShare } from "@/lib/attention";
 import type { BoardTask } from "@/lib/board";
 import { useApi } from "@/lib/hooks";
 import { type Analysis, type ChatItem, type ConsoleItem, type Inspect, REVIEW_TABS, TAB_LABEL, clock, dayBreaks,
   failedCount, prompt, studentHref } from "@/lib/review";
 
 type TaskPick = Pick<BoardTask, "id" | "number" | "title">;
+
+// Куда смотрит вкладка ученика: сейчас, итоги с начала дня и лента переходов
+export function AttentionCard({ studentId }: { studentId: string }) {
+  const [since] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.toISOString(); });
+  const { data } = useApi<AttentionLog>(`/group/students/${studentId}/attention?since=${encodeURIComponent(since)}`,
+    { pollMs: 5000 });
+  const [open, setOpen] = useState(false);
+  if (!data) return null;
+  const now = Date.now(), share = focusShare(data.totals), cur = ATTENTION[data.state];
+  const events = [...data.events].reverse();
+  return (
+    <Card className="mb-4">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+        <span className={`font-medium ${cur.text}`}>
+          <span className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${cur.dot}`} />
+          {cur.label}{data.state !== "focused" && data.since ? ` · ${ago(data.since, now)}` : ""}</span>
+        <span className="text-zinc-500">сегодня:</span>
+        {(["focused", "blurred", "hidden"] as const).map((s) => (
+          <span key={s} className={ATTENTION[s].text}>{ATTENTION[s].label} {duration(data.totals[s])}</span>))}
+        {share !== null && <Badge tone={share >= 80 ? "green" : share >= 50 ? "yellow" : "red"}>в фокусе {share}%</Badge>}
+        {events.length > 0 && <button className="ml-auto text-xs text-indigo-600 hover:underline"
+          onClick={() => setOpen(!open)}>{open ? "скрыть ленту" : `лента (${events.length})`}</button>}
+      </div>
+      {open && <ul className="mt-2 max-h-60 overflow-y-auto border-t border-zinc-100 pt-2 text-xs dark:border-zinc-800">
+        {events.map((e, i) => (
+          <li key={i} className={ATTENTION[e.state].text}>
+            <span className="mr-2 font-mono text-zinc-500">{new Date(e.at).toLocaleTimeString("ru")}</span>
+            {ATTENTION[e.state].label}</li>
+        ))}
+      </ul>}
+    </Card>
+  );
+}
 
 // Вход на страницу ученика сразу в нужную вкладку (офис, группа)
 export function StudentLinks({ studentId, compact }: { studentId: string; compact?: boolean }) {

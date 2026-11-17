@@ -1,9 +1,10 @@
 // Офис группы — один этаж: кабинет преподавателя, коридор и кабинеты учеников по обе стороны коридора. Свет и агенты — только когда ученик в сети (данные — GET /office).
+import type { Attention } from "./attention";
 export type AgentState = "typing" | "waiting" | "idle" | "done";
 export type RoomAgent = { key: string; name: string; state: AgentState;
   task: { id: string; title: string; status: string } | null; last_reply: string | null };
 export type Room = { seat: number; student: { id: string; name: string } | null; online: boolean; lights: boolean;
-  agents: RoomAgent[] };
+  agents: RoomAgent[]; attention?: Attention };
 export type Office = { size: number; rooms: Room[] };
 export type Cell = { x: number; y: number };
 
