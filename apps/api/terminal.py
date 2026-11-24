@@ -16,6 +16,7 @@ from apps.api.auth import COOKIE, account_from_cookie, role_problem
 from apps.api.deps import engine_dep, settings_dep
 from apps.api.sandbox import get_backend
 from trainer.sandbox.manager import NoSandbox, SandboxManager
+from trainer.sandbox.termlog import Recorder, TerminalLog
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,6 +57,9 @@ async def terminal(ws: WebSocket) -> None:
         await ws.close(code=4403)
         return
     await ws.accept()
+    # экран для преподавателя: вывод пишем по пути (см. trainer/sandbox/termlog.py)
+    recorder = Recorder(TerminalLog(engine), account.id,
+                        on_error=lambda e: log.warning("запись терминала %s: %r", account.login, e))
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=QUEUE_CHUNKS)
     stop = threading.Event()
@@ -82,11 +86,14 @@ async def terminal(ws: WebSocket) -> None:
                 data = tty.read(0.1)
                 if data is None:
                     break
+                recorder.feed(data)  # и пустое чтение: раз в секунду сбрасывает накопленное
                 if data and not put(data):
                     return
             put(None)
         except Exception:  # noqa: BLE001 — соединение закрыто, цикл событий остановлен
             pass
+        finally:
+            recorder.flush()
 
     threading.Thread(target=pump, daemon=True).start()
 
@@ -111,6 +118,7 @@ async def terminal(ws: WebSocket) -> None:
                 if cmd.get("type") == "resize":
                     cols, rows = _clamp(cmd.get("cols"), 1, 500, 80), _clamp(cmd.get("rows"), 1, 200, 24)
                     await run_in_threadpool(tty.resize, cols, rows)
+                    await run_in_threadpool(recorder.size, cols, rows)
                 elif cmd.get("type") == "input":  # текстовый ввод (на случай клиента без бинарных кадров)
                     await run_in_threadpool(tty.write, str(cmd.get("data", "")).encode())
 

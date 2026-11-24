@@ -5,6 +5,7 @@ import { Suspense, useState } from "react";
 import { RoomFeed } from "@/components/office/RoomFeed";
 import { AttentionCard, ChatLog, ConsoleLog, TaskReview } from "@/components/StudentReview";
 import { TaskBoard } from "@/components/TaskBoard";
+import { TerminalScreen } from "@/components/TerminalScreen";
 import { Card, Empty, ErrorBox, Loading, PageTitle, Tabs } from "@/components/ui";
 import { api } from "@/lib/api";
 import type { Board } from "@/lib/board";
@@ -51,7 +52,7 @@ function StudentPage() {
         {name && <RoomFeed studentId={id} name={name} />}
       </>}
       {tab === "chat" && <ChatLog studentId={id} tasks={tasks} />}
-      {tab === "console" && <ConsoleLog studentId={id} />}
+      {tab === "console" && <><TerminalScreen studentId={id} /><ConsoleLog studentId={id} /></>}
       {tab === "review" && <TaskReview studentId={id} tasks={tasks} task={task} onTask={(t) => go({ task: t })} />}
     </>
   );

@@ -1,4 +1,6 @@
-"""Работа ученика глазами преподавателя: вся переписка, команды в терминале, разбор задания, «почему не засчитано»."""
+"""Работа ученика глазами преподавателя: вся переписка, команды и экран терминала, разбор задания, «почему не засчитано»."""
+import base64
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import Engine
 
@@ -9,6 +11,7 @@ from apps.api.sandbox import manager_dep
 from trainer.curriculum.tasks import TaskStore
 from trainer.llm_gateway.gateway import GatewayError
 from trainer.sandbox.manager import SandboxManager
+from trainer.sandbox.termlog import TerminalLog
 from trainer.settings import Settings
 from trainer.tutor import review
 from trainer.tutor.jobs import LlmDeps
@@ -40,6 +43,15 @@ def console(student_id: str, engine: Engine = Depends(engine_dep),
             manager: SandboxManager = Depends(manager_dep)) -> list[dict]:
     _student_or_404(engine, student_id)
     return review.console(manager, student_id)
+
+
+@router.get("/terminal")
+def terminal_screen(student_id: str, after: int = 0, engine: Engine = Depends(engine_dep)) -> dict:
+    """Экран терминала: куски вывода (base64) и размеры окна после after; last — с чего продолжить опрос."""
+    _student_or_404(engine, student_id)
+    chunks = TerminalLog(engine).since(student_id, after)
+    return {"chunks": [{"id": c.id, "kind": c.kind, "data": base64.b64encode(c.data).decode()} for c in chunks],
+            "last": chunks[-1].id if chunks else after}
 
 
 @router.get("/tasks/{task_id}/inspect")
