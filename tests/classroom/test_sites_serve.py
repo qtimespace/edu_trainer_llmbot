@@ -105,3 +105,35 @@ def test_student_sees_own_site_url(site, kid, api):
     assert _client("kid1").get("/me/site").json() == {"url": "http://localhost:3000/s/kid1/"}
     GroupStore(api).set_site(kid, "site-maket", False)
     assert _client("kid1").get("/me/site").json() == {"url": None}
+
+
+def test_file_swapped_for_symlink_after_the_check_is_not_served(site, homes, monkeypatch):
+    """Гонка: проверили обычный файл, а к открытию ученик подменил его ярлыком на чужой дом — не отдаём."""
+    other = sites.home_of(homes, 2)
+    other.mkdir(parents=True)
+    (other / "id_ed25519").write_text("чужой ключ")
+    (site / "a.txt").write_text("обычный файл")
+    try:
+        (site / "probe").symlink_to(other / "id_ed25519")
+        (site / "probe").unlink()
+    except OSError:
+        pytest.skip("нет прав на ярлыки (Windows без режима разработчика)")
+    checked = sites.resolve
+
+    def swap_after_check(*a):
+        target = checked(*a)
+        if target is not None and target.name == "a.txt":
+            target.unlink()
+            target.symlink_to(other / "id_ed25519")
+        return target
+
+    monkeypatch.setattr(sites, "resolve", swap_after_check)
+    r = TestClient(app).get("/s/kid1/a.txt")
+    assert r.status_code == 404 and "чужой" not in r.text
+
+
+def test_fifo_is_not_served(site):
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("нет mkfifo")
+    os.mkfifo(site / "pipe.txt")
+    assert TestClient(app).get("/s/kid1/pipe.txt").status_code == 404
