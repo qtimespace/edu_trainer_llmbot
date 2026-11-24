@@ -88,7 +88,7 @@ def read(home: Path, site_dir: str, path: str) -> tuple[bytes, str] | None:
     if target is None:
         return None
     try:
-        root = (home.resolve(strict=True) / site_dir).resolve(strict=True)
+        home_real = home.resolve(strict=True)  # сам дом ученик не подменит: /home принадлежит root
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
         fd = os.open(target, flags)
     except (OSError, RuntimeError, ValueError):
@@ -97,7 +97,12 @@ def read(home: Path, site_dir: str, path: str) -> tuple[bytes, str] | None:
         real = Path(_opened_path(fd, target))
         info = os.fstat(fd)
         kind = CONTENT_TYPES.get(real.suffix.lower())
-        if not _inside(real, root) or not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES or kind is None:
+        # открытый файл — в доме этого ученика, ровно под <site_dir>/ и без скрытых частей; подмена папки или
+        # файла ярлыком после проверки уводит в другое место — и такой файл не отдаём
+        rel = real.relative_to(home_real).parts if _inside(real, home_real) else ()
+        site_parts = tuple(site_dir.split("/"))
+        if (rel[:len(site_parts)] != site_parts or len(rel) <= len(site_parts) or any(p.startswith(".") for p in rel)
+                or not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES or kind is None):
             return None
         with os.fdopen(fd, "rb", closefd=False) as f:
             data = f.read(MAX_BYTES + 1)
