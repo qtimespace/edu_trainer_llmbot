@@ -33,14 +33,15 @@ def test_ensure_passes_lesson_password(world):
     assert box["volume"] == volume_name(1)
 
 
-def test_reset_wipes_volume_and_recreates(world):
+def test_reset_recreates_the_system_but_keeps_the_students_files(world):
+    """«Пересоздать сервер» жмут, когда что-то сломалось, — работа ученика (/home) должна остаться."""
     engine, fake, kids = world
     manager = SandboxManager(fake, engine)
     manager.ensure_for(kids[0])
-    fake.volumes[volume_name(1)]["file"] = "ученик всё сломал"
+    fake.volumes[volume_name(1)]["file"] = "site/plan.txt"
     manager.reset(kids[0])
     assert fake.status(container_name(kids[0])) == "running"
-    assert fake.volumes[volume_name(1)] == {}
+    assert fake.volumes[volume_name(1)] == {"file": "site/plan.txt"}
 
 
 def test_login_ensures_sandbox(world):
@@ -57,7 +58,7 @@ def test_student_resets_only_own(world):
     login(kid, "kid1")
     fake.volumes[volume_name(1)]["file"] = "x"
     assert kid.post("/me/sandbox/reset").status_code == 204
-    assert fake.volumes[volume_name(1)] == {}
+    assert fake.volumes[volume_name(1)] == {"file": "x"}
     assert kid.post(f"/group/students/{kids[1]}/sandbox/reset").status_code == 403
 
 

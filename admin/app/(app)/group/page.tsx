@@ -36,7 +36,7 @@ function StudentRow({ s, onChange }: { s: Student; onChange: () => void }) {
   const [secret, setSecret] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const reset = async () => {
-    if (!confirm(`Пересоздать сервер ученика ${s.name}? Все его файлы будут удалены.`)) return;
+    if (!confirm(`Пересоздать сервер ученика ${s.name}? Система станет как новая, файлы ученика в /home останутся.`)) return;
     await api(`/group/students/${s.account_id}/sandbox/reset`, { method: "POST" }).catch(setError);
     reload();
   };

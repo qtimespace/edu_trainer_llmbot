@@ -21,7 +21,8 @@ export default function TaskPage({ params }: { params: Promise<{ id: string }> }
   if (!task.data) return <><ErrorBox error={task.error} /><Loading /></>;
   const agentName = office.data?.rooms[0]?.agents.find((a) => a.key === task.data!.agent_key)?.name ?? "Агент";
   const reset = async () => {
-    if (!confirm("Пересоздать твой сервер? Все файлы на нём удалятся, и всё начнётся с чистого листа.")) return;
+    if (!confirm("Пересоздать твой сервер? Зависшие программы остановятся, система станет как новая. "
+      + "Твои файлы и папки в /home/student останутся.")) return;
     setResetting(true);
     try {
       await api("/me/sandbox/reset", { method: "POST" });

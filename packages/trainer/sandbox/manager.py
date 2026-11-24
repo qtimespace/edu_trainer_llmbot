@@ -39,8 +39,10 @@ class SandboxManager:
                              volume_name(student.seat))
 
     def reset(self, student_id: str) -> None:
+        """Свежая система (процессы, /tmp, установленное) — а файлы ученика в /home остаются: кнопку жмут, когда
+        что-то сломалось, и работа по заданиям пропадать не должна."""
         student = self._student(student_id)
-        self._backend.remove(container_name(student_id), volume_name(student.seat), wipe=True)
+        self._backend.remove(container_name(student_id), volume_name(student.seat), wipe=False)
         self.ensure_for(student_id)
 
     def status(self, student_id: str) -> Status:
