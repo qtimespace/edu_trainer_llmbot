@@ -137,3 +137,27 @@ def test_fifo_is_not_served(site):
         pytest.skip("нет mkfifo")
     os.mkfifo(site / "pipe.txt")
     assert TestClient(app).get("/s/kid1/pipe.txt").status_code == 404
+
+
+def test_site_folder_swapped_for_symlink_after_the_check_is_not_served(site, homes, monkeypatch):
+    """Гонка на уровне папки: после проверки ученик подменил саму папку сайта ярлыком на чужой дом."""
+    other = sites.home_of(homes, 2) / "site"
+    other.mkdir(parents=True)
+    (other / "index.html").write_text("чужой сайт")
+    try:
+        (site.parent / "probe").symlink_to(other, target_is_directory=True)
+        (site.parent / "probe").unlink()
+    except OSError:
+        pytest.skip("нет прав на ярлыки (Windows без режима разработчика)")
+    checked = sites.resolve
+
+    def swap_after_check(*a):
+        target = checked(*a)
+        if target is not None:
+            site.rename(site.parent / "old-site")
+            site.symlink_to(other, target_is_directory=True)
+        return target
+
+    monkeypatch.setattr(sites, "resolve", swap_after_check)
+    r = TestClient(app).get("/s/kid1/index.html")
+    assert r.status_code == 404 and "чужой" not in r.text
