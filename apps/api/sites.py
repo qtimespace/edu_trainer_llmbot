@@ -1,7 +1,7 @@
 """Сайты учеников: /s/<логин>/ — без входа, только статика из опубликованной папки. Страницы живут на домене
 панели, поэтому каждый ответ — с CSP sandbox: у страницы «чужое» происхождение, сессия преподавателя ей недоступна."""
 from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import Engine
 
 from apps.api.auth import account_dep
@@ -35,10 +35,11 @@ def site_file(login: str, path: str, engine: Engine = Depends(engine_dep),
     student = GroupStore(engine).student_by_login(login)
     if student is None or not student.site_published or not student.site_dir:
         return _not_found()
-    target = sites.resolve(sites.home_of(settings.homes_dir, student.seat), student.site_dir, path)
-    if target is None:
+    found = sites.read(sites.home_of(settings.homes_dir, student.seat), student.site_dir, path)
+    if found is None:
         return _not_found()
-    return FileResponse(target, media_type=sites.CONTENT_TYPES[target.suffix.lower()], headers=HEADERS)
+    data, kind = found
+    return Response(data, media_type=kind, headers=HEADERS)
 
 
 @router.get("/me/site")

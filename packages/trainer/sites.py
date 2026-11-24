@@ -1,6 +1,8 @@
 """Сайты учеников: /s/<логин>/ — статические файлы прямо из папки ученика (только чтение). Папку и публикацию
 задаёт преподаватель. Ничего за пределами папки сайта не отдаём: ни скрытые файлы, ни ярлыки наружу."""
+import os
 import re
+import stat
 from pathlib import Path
 
 # сегмент пути: не с точки (никаких .ssh, .., скрытых файлов); буквы любого алфавита, цифры, пробел, . _ -
@@ -69,3 +71,38 @@ def resolve(home: Path, site_dir: str, path: str) -> Path | None:
     except (OSError, RuntimeError, ValueError):
         return None
     return target
+
+
+def _opened_path(fd: int, fallback: Path) -> str:
+    """Настоящий путь уже открытого файла: на Linux — /proc/self/fd (подмену имени после открытия не обманешь);
+    где /proc нет (разработка на Windows) — realpath."""
+    proc = f"/proc/self/fd/{fd}"
+    return os.readlink(proc) if os.path.exists(proc) else os.path.realpath(fallback)
+
+
+def read(home: Path, site_dir: str, path: str) -> tuple[bytes, str] | None:
+    """Содержимое и тип файла сайта. Файл открывается один раз (без перехода по ярлыку в последнем звене), и уже
+    открытый проверяется: лежит внутри папки сайта, обычный файл, не больше MAX_BYTES. Подменить файл ярлыком
+    между проверкой и чтением нельзя — читаем именно проверенное."""
+    target = resolve(home, site_dir, path)
+    if target is None:
+        return None
+    try:
+        root = (home.resolve(strict=True) / site_dir).resolve(strict=True)
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+        fd = os.open(target, flags)
+    except (OSError, RuntimeError, ValueError):
+        return None
+    try:
+        real = Path(_opened_path(fd, target))
+        info = os.fstat(fd)
+        kind = CONTENT_TYPES.get(real.suffix.lower())
+        if not _inside(real, root) or not stat.S_ISREG(info.st_mode) or info.st_size > MAX_BYTES or kind is None:
+            return None
+        with os.fdopen(fd, "rb", closefd=False) as f:
+            data = f.read(MAX_BYTES + 1)
+        return (data, kind) if len(data) <= MAX_BYTES else None
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
