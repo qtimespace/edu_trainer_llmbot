@@ -4,6 +4,7 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Suspense, useState } from "react";
 import { RoomFeed } from "@/components/office/RoomFeed";
 import { AttentionCard, ChatLog, ConsoleLog, TaskReview } from "@/components/StudentReview";
+import { SiteCard } from "@/components/SiteCard";
 import { TaskBoard } from "@/components/TaskBoard";
 import { TerminalScreen } from "@/components/TerminalScreen";
 import { Card, Empty, ErrorBox, Loading, PageTitle, Tabs } from "@/components/ui";
@@ -38,6 +39,7 @@ function StudentPage() {
       <PageTitle actions={<Link href="/group" className="text-sm text-indigo-600 hover:underline">← Группа</Link>}>
         {name || "Ученик"}</PageTitle>
       <AttentionCard studentId={id} />
+      <SiteCard studentId={id} />
       <Tabs<ReviewTab> value={tab} onChange={(t) => go({ tab: t })} tabs={[
         { key: "board", label: "Доска" }, { key: "chat", label: "Чат" }, { key: "console", label: "Консоль" },
         { key: "review", label: "Разбор задания" }]} />

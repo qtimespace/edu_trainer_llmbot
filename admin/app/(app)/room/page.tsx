@@ -11,12 +11,16 @@ import type { Office } from "@/lib/rooms";
 export default function RoomPage() {
   const office = useApi<Office>("/office", { pollMs: 2000 });
   const board = useApi<Board>("/me/board", { pollMs: 3000 });
+  const site = useApi<{ url: string | null }>("/me/site");
   const [error, setError] = useState<Error | null>(null);
   if (!board.data) return <><ErrorBox error={board.error} /><Loading /></>;
   return (
     <>
       <PageTitle>Моя комната</PageTitle>
       <ErrorBox error={error} />
+      {site.data?.url && <p className="mb-3 text-sm">Твой сайт в интернете:{" "}
+        <a href={site.data.url} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
+          {site.data.url}</a> — можно отправить родителям и друзьям.</p>}
       <Card title="Мои задания" className="mb-4">
         {board.data.tasks.length === 0 ? <Empty>Заданий пока нет — подожди преподавателя</Empty> : <>
           <p className="mb-2 text-xs text-zinc-500">Перетащи карточку на следующий этап — задание подхватит агент этого

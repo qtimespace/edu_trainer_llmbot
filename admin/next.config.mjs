@@ -4,7 +4,8 @@ const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${api}/:path*` }];
+    return [{ source: "/api/:path*", destination: `${api}/:path*` },
+      { source: "/s/:path*", destination: `${api}/s/:path*` }];
   },
 };
 export default nextConfig;
