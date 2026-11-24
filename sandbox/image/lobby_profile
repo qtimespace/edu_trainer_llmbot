@@ -1,8 +1,12 @@
 # Терминал тренажёра. Подключись к своему серверу: ssh student@lab
+# Интерактивный вход — приветствие и шлюз: только ssh на сервер, clear, exit (sandbox/image/lobby-gate).
+case $- in
+    *i*)
+        echo
+        echo "  Привет! Это вход в учебный центр. Здесь работает только подключение к серверу:"
+        echo "      ssh student@lab"
+        echo "  Пароль выдаст преподаватель. Все задания делаются уже на сервере lab."
+        echo
+        exec /usr/local/bin/lobby-gate ;;
+esac
 . /etc/profile.d/trainer-history.sh
-PS1='\[\e[33m\]lobby\[\e[0m\]:~$ '
-echo
-echo "  Привет! Это вход в учебный центр."
-echo "  Подключись к своему серверу командой:  ssh student@lab"
-echo "  Пароль выдаст преподаватель."
-echo

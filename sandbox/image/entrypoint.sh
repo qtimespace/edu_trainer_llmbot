@@ -9,8 +9,9 @@ for u in lobby student; do
     if [ ! -d "/home/$u" ]; then
         mkdir -p "/home/$u"
         cp -a /etc/skel/. "/home/$u/"
-        [ -f "/etc/trainer-skel/$u.bash_profile" ] && cp "/etc/trainer-skel/$u.bash_profile" "/home/$u/.bash_profile"
     fi
+    # профиль входа — наш, обновляется с образом (у старых учеников домашняя папка уже есть)
+    [ -f "/etc/trainer-skel/$u.bash_profile" ] && cp "/etc/trainer-skel/$u.bash_profile" "/home/$u/.bash_profile"
     chown -R "$u:$u" "/home/$u" 2>/dev/null || true
     chmod 0750 "/home/$u"
 done

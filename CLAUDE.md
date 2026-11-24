@@ -53,7 +53,9 @@ Python 3.12 (строго; `pgserver` для тестов — cp312), uv выз�
   `POST /me/tasks/{id}/translit`, агент задания за счёт бюджета ученика); в терминале Ctrl+V вставляет (`lib/clipboard.ts`).
 - Windows: vitest запускать из пути с заглавной `G:` — при `g:` два экземпляра модулей и «failed to find the current suite».
 - Песочница: без Docker-сокета, без портов наружу, сеть без ICC + DOCKER-USER (только интернет); ssh-урок — внутри
-  браузерного терминала (`lobby` → `ssh student@lab`).
+  браузерного терминала (`lobby` → `ssh student@lab`). Вход `lobby` — шлюз `sandbox/image/lobby-gate`: только
+  `ssh пользователь@сервер` (без ключей — `-o ProxyCommand` выполнил бы команду на входе), `clear`, `exit`; строки
+  пишутся в историю входа. Профиль `lobby` entrypoint перезаписывает при каждом старте.
 
 ## Статус
 Очередь 1 выложена (2026-11-03) на https://edu.qfenek.com, ветка `main` (автовыкладка), `pytest -m docker` на сервере —

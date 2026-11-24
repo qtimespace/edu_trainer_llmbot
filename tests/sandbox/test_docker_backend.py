@@ -37,6 +37,23 @@ def test_russian_works_in_terminal_and_over_ssh(box):
     assert r.output.split() == ["UTF-8", "UTF-8", "файл.txt"], r.output
 
 
+def test_lobby_terminal_only_lets_you_ssh_to_the_server(box):
+    """До ssh работать нельзя: файл на входе не создать, ssh с ключами (ProxyCommand) не пройдёт, а ssh student@lab —
+    пускает; попытки — в истории входа для преподавателя."""
+    backend, name = box
+    tty = backend.attach_tty(name, "lobby")
+    # Enter в браузерном терминале — \r; новый сервер ssh спрашивает про ключ хоста (yes), потом пароль
+    for line in (b"mkdir oops\r", b"ssh -o ProxyCommand=touch\\ /home/lobby/px student@lab\r", b"ssh student@lab\r",
+                 b"yes\r", b"kot-les-dom\r", b"whoami > /home/student/me.txt\r"):
+        tty.write(line)
+        time.sleep(1.5)
+    tty.close()
+    files = backend.exec(name, ["sh", "-c", "ls /home/lobby; cat /home/student/me.txt"], user="root", timeout_s=10).output
+    assert "oops" not in files and "px" not in files and "student" in files, files
+    history = backend.exec(name, ["cat", "/home/lobby/.bash_history"], user="root", timeout_s=10).output
+    assert "mkdir oops" in history and "ssh student@lab" in history
+
+
 def test_fork_bomb_contained_and_reset_recovers(box):
     """Форк-бомба упирается в pids_limit своей песочницы; «Пересоздать мой сервер» (remove + ensure) её снимает."""
     backend, name = box

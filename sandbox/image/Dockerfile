@@ -20,7 +20,8 @@ COPY history.sh /etc/profile.d/trainer-history.sh
 COPY motd /etc/motd
 COPY lobby_profile /etc/trainer-skel/lobby.bash_profile
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/entrypoint.sh \
+COPY lobby-gate /usr/local/bin/lobby-gate
+RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/bin/lobby-gate \
     && cat /etc/profile.d/trainer-history.sh >> /etc/bash.bashrc \
     && chmod 0644 /etc/trainer-skel/lobby.bash_profile \
     && ssh-keygen -A

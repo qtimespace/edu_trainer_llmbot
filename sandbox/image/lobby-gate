@@ -1,0 +1,33 @@
+#!/bin/bash
+# Вход lobby: до входа на сервер работать нельзя — только подключиться к нему (ssh student@lab), очистить экран
+# или выйти. Иначе ученик создаёт файлы на входе, а проверки смотрят сервер lab. Каждая введённая строка пишется
+# в историю (как PROMPT_COMMAND="history -a") — преподаватель видит попытки во вкладке «Консоль».
+HISTFILE="$HOME/.bash_history"
+HINT="  Ты ещё на входе — здесь команды не работают. Сначала подключись к своему серверу:  ssh student@lab"
+set -o history
+trap ':' INT  # Ctrl+C — новая строка, а не закрытый терминал
+trap '' QUIT TSTP  # Ctrl+\ и Ctrl+Z не роняют и не замораживают вход
+
+log() { printf '#%s\n%s\n' "$(date +%s)" "$1" >> "$HISTFILE" 2>/dev/null; history -s "$1"; }
+
+while true; do
+    IFS= read -r -e -p $'\001\e[33m\002lobby\001\e[0m\002:~$ ' line
+    rc=$?
+    if [ "$rc" -gt 128 ]; then echo; continue; fi  # прервали Ctrl+C
+    [ "$rc" -ne 0 ] && { echo; exit 0; }           # Ctrl+D
+    [ -z "${line//[[:space:]]/}" ] && continue
+    log "$line"
+    read -ra w <<< "$line"
+    case "${w[0]}" in
+        ssh)
+            # только «ssh пользователь@сервер» или «ssh сервер»: без ключей (-o ProxyCommand=… запустил бы команду здесь)
+            if [ "${#w[@]}" -eq 2 ] && [[ "${w[1]}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*(@[A-Za-z0-9_.-]+)?$ ]]; then
+                ssh -- "${w[1]}"
+            else
+                echo "  Подключение пишется так:  ssh student@lab   (без пробелов вокруг @)"
+            fi ;;
+        clear) clear ;;
+        exit|logout) exit 0 ;;
+        *) echo "$HINT" ;;
+    esac
+done
