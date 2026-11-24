@@ -51,6 +51,11 @@ done
 # 4) образ песочницы и стек
 docker build -t trainer-sandbox:1 sandbox/image
 docker compose -f infra/docker/docker-compose.yml --env-file infra/docker/.env up -d --build
+# Caddyfile смонтирован файлом: git reset кладёт новый файл, а контейнер держит старый — перезапуск, если он менялся
+sum=$(sha256sum infra/docker/Caddyfile | cut -d' ' -f1)
+if [ "$(cat /srv/trainer/caddyfile.sha 2>/dev/null)" != "$sum" ]; then
+    docker restart trainer-caddy >/dev/null && echo "$sum" > /srv/trainer/caddyfile.sha
+fi
 # 5) автовыкладка: раз в минуту новый коммит main с зелёным CI (infra/deploy/autodeploy.sh)
 cat > /etc/systemd/system/trainer-autodeploy.service <<UNIT
 [Unit]

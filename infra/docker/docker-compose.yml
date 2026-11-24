@@ -48,8 +48,10 @@ services:
       TRAINER_SANDBOX_BACKEND: docker
       TRAINER_SANDBOX_MEM: ${TRAINER_SANDBOX_MEM:-384m}
       TRAINER_SANDBOX_CPUS: ${TRAINER_SANDBOX_CPUS:-0.5}
+      TRAINER_HOMES_DIR: /homes
     # сокет Docker — чтобы создавать песочницы; ученик до него не дотягивается (только HTTP API)
-    volumes: ["/var/run/docker.sock:/var/run/docker.sock"]
+    # дома учеников — только чтение: отсюда отдаются их сайты /s/<логин>/
+    volumes: ["/var/run/docker.sock:/var/run/docker.sock", "/srv/trainer/homes:/homes:ro"]
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]

@@ -6,6 +6,10 @@
 	handle /ws/* {
 		reverse_proxy trainer-api:8000
 	}
+	# сайты учеников /s/<логин>/ — статика из их папок, отдаёт API (sites.py)
+	handle /s/* {
+		reverse_proxy trainer-api:8000
+	}
 	handle_path /api/* {
 		reverse_proxy trainer-api:8000
 	}
