@@ -39,6 +39,8 @@ class Student:
     note: str
     budget_usd: float
     lesson_password: str
+    site_dir: str | None = None
+    site_published: bool = False
 
 
 def lesson_password() -> str:
@@ -51,7 +53,8 @@ def login_password() -> str:
 
 def _student(r) -> Student:
     return Student(account_id=str(r.account_id), login=r.login, name=r.name, seat=r.seat, note=r.note,
-                   budget_usd=float(r.budget_usd), lesson_password=r.lesson_password)
+                   budget_usd=float(r.budget_usd), lesson_password=r.lesson_password,
+                   site_dir=r.site_dir, site_published=r.site_published)
 
 
 _SELECT = """SELECT gs.*, a.login, a.name FROM group_students gs JOIN accounts a ON a.id = gs.account_id"""
@@ -112,6 +115,16 @@ class GroupStore:
         with self._engine.connect() as c:
             r = c.execute(text(_SELECT + " WHERE gs.account_id = CAST(:a AS uuid)"), {"a": account_id}).first()
         return _student(r) if r else None
+
+    def student_by_login(self, login: str) -> Student | None:
+        with self._engine.connect() as c:
+            r = c.execute(text(_SELECT + " WHERE lower(a.login) = lower(:l)"), {"l": login}).first()
+        return _student(r) if r else None
+
+    def set_site(self, account_id: str, site_dir: str | None, published: bool) -> None:
+        with self._engine.begin() as c:
+            c.execute(text("""UPDATE group_students SET site_dir = :d, site_published = :p
+                              WHERE account_id = CAST(:a AS uuid)"""), {"a": account_id, "d": site_dir, "p": published})
 
     def update_student(self, account_id: str, note: str | None = None, budget_usd: float | None = None,
                        name: str | None = None) -> None:

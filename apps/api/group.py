@@ -6,10 +6,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Engine
 
 from apps.api.auth import teacher_dep
-from apps.api.deps import engine_dep
+from apps.api.deps import engine_dep, settings_dep
 from trainer.accounts.sessions import SessionStore
 from trainer.accounts.store import AccountStore, LoginTaken
+from trainer import sites
 from trainer.classroom.groups import MAX_SIZE, MIN_SIZE, GroupFull, GroupStore, SeatsTaken, login_password
+from trainer.settings import Settings
 
 router = APIRouter(prefix="/group", dependencies=[Depends(teacher_dep)])
 
@@ -103,3 +105,37 @@ def reset_password(account_id: str, engine: Engine = Depends(engine_dep)) -> dic
     AccountStore(engine).set_password(account_id, password)
     SessionStore(engine).close_all(account_id)  # старый пароль мог утечь — выходим со всех устройств
     return {"password": password}
+
+
+class SiteBody(BaseModel):
+    site_dir: str | None = Field(default=None, max_length=sites.MAX_DIR)
+    published: bool = False
+
+
+def site_url(settings: Settings, login: str) -> str:
+    return f"{settings.public_origin}/s/{login}/"
+
+
+def _site(student, settings: Settings) -> dict:
+    return {"site_dir": student.site_dir, "published": student.site_published,
+            "suggested": sites.suggest_dir(sites.home_of(settings.homes_dir, student.seat)),
+            "url": site_url(settings, student.login)}
+
+
+@router.get("/students/{account_id}/site")
+def get_site(account_id: str, engine: Engine = Depends(engine_dep), settings: Settings = Depends(settings_dep)) -> dict:
+    return _site(_student_or_404(GroupStore(engine), account_id), settings)
+
+
+@router.put("/students/{account_id}/site")
+def put_site(account_id: str, body: SiteBody, engine: Engine = Depends(engine_dep),
+             settings: Settings = Depends(settings_dep)) -> dict:
+    store = GroupStore(engine)
+    _student_or_404(store, account_id)
+    site_dir = (body.site_dir or "").strip().rstrip("/") or None
+    if site_dir is not None and not sites.valid_dir(site_dir):
+        raise HTTPException(status_code=422, detail="папка — путь внутри дома ученика, без «..» и скрытых папок")
+    if body.published and site_dir is None:
+        raise HTTPException(status_code=409, detail="сначала укажите папку сайта")
+    store.set_site(account_id, site_dir, body.published)
+    return _site(store.student(account_id), settings)

@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     sandbox_disk_quota: bool = True
     # "docker" — настоящие контейнеры; "fake" — заглушка для разработки без Docker
     sandbox_backend: str = "docker"
+    # дома учеников (seat<N>/student) — отсюда только читаются сайты /s/<логин>/
+    homes_dir: Path = Path("/srv/trainer/homes")
 
     llm_registry_path: Path = _PKG / "llm_gateway" / "registry.yaml"
     llm_policies_dir: Path = _PKG / "llm_gateway" / "policies"
